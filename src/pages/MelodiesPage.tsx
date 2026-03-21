@@ -1,11 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { 
-  useSessions, 
-  useMelodies, 
-  useMelodyFolders, 
-  useMelodyImages, 
-  useMelodyPracticeLogs 
-} from '@/hooks/use-music-data';
+import { useSessions, useMelodies } from '@/hooks/use-music-data';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 import { getTodayEC, generateId } from '@/lib/music-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,10 +78,10 @@ const KEYS_LIST = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', '
 export default function MelodiesPage() {
   const { openFocusMode } = useFocusMode();
   const [sessions, setSessions] = useSessions();
-  const [folders, setFolders] = useMelodyFolders();
+  const [folders, setFolders] = useLocalStorage<MelodyFolder[]>('mm-melody-folders', []);
   const [melodies, setMelodies] = useMelodies();
-  const [allImages, setAllImages] = useMelodyImages();
-  const [practiceLogs, setPracticeLogs] = useMelodyPracticeLogs();
+  const [allImages, setAllImages] = useLocalStorage<MelodyImage[]>('mm-melody-images', []);
+  const [practiceLogs, setPracticeLogs] = useLocalStorage<MelodyPracticeLog[]>('mm-melody-logs', []);
 
   const { instruments } = useInstruments();
   const today = getTodayEC();

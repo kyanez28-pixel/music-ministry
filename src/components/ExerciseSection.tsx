@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useExercises, useExerciseImages } from '@/hooks/use-music-data';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 import { generateId, getTodayEC, formatDate } from '@/lib/music-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,8 +77,8 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   defaultCategory 
 }) => {
   const { openFocusMode } = useFocusMode();
-  const [exercises, setExercises] = useExercises();
-  const [allImages, setAllImages] = useExerciseImages();
+  const [exercises, setExercises] = useLocalStorage<Exercise[]>('mm-exercises', []);
+  const [allImages, setAllImages] = useLocalStorage<ExerciseImage[]>('mm-exercise-images', []);
   const today = getTodayEC();
 
   // UI State
