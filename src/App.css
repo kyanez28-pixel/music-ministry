@@ -1,0 +1,12 @@
+/* 
+  App.css — MusicMinistry
+  La mayoría de estilos están en src/index.css con Tailwind.
+  Este archivo se mantiene mínimo para evitar conflictos.
+*/
+
+/* Transiciones de página suaves */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
