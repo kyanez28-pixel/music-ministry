@@ -19,6 +19,7 @@ import ExercisesPage from "./pages/ExercisesPage";
 import MetronomePage from "./pages/MetronomePage";
 import StatsPage from "./pages/StatsPage";
 import NotFound from "./pages/NotFound";
+import { DataMigrationProvider } from "./components/DataMigrationProvider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,23 +36,25 @@ const App = () => (
       <TooltipProvider delayDuration={300}>
         <FocusModeProvider>
           <BrowserRouter>
-            <Routes>
-              <Route path="/auth" element={<AuthPage />} />
-              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                <Route path="/" element={<DashboardPage />} />
-                <Route path="/practice" element={<PracticePage />} />
-                <Route path="/history" element={<HistoryPage />} />
-                <Route path="/setlist" element={<SetlistPage />} />
-                <Route path="/scales" element={<ScalesPage />} />
-                <Route path="/harmonies" element={<HarmoniesPage />} />
-                <Route path="/melodies" element={<MelodiesPage />} />
-                <Route path="/rhythms" element={<RhythmsPage />} />
-                <Route path="/exercises" element={<ExercisesPage />} />
-                <Route path="/metronome" element={<MetronomePage />} />
-                <Route path="/stats" element={<StatsPage />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <DataMigrationProvider>
+              <Routes>
+                <Route path="/auth" element={<AuthPage />} />
+                <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/practice" element={<PracticePage />} />
+                  <Route path="/history" element={<HistoryPage />} />
+                  <Route path="/setlist" element={<SetlistPage />} />
+                  <Route path="/scales" element={<ScalesPage />} />
+                  <Route path="/harmonies" element={<HarmoniesPage />} />
+                  <Route path="/melodies" element={<MelodiesPage />} />
+                  <Route path="/rhythms" element={<RhythmsPage />} />
+                  <Route path="/exercises" element={<ExercisesPage />} />
+                  <Route path="/metronome" element={<MetronomePage />} />
+                  <Route path="/stats" element={<StatsPage />} />
+                </Route>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </DataMigrationProvider>
           </BrowserRouter>
           <Sonner
             position="bottom-right"

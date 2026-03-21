@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useRhythms } from '@/hooks/use-music-data';
-import { useLocalStorage } from '@/hooks/use-local-storage';
+import { useRhythms, useRhythmImages } from '@/hooks/use-music-data';
 import { generateId } from '@/lib/music-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +30,7 @@ const RHYTHM_TYPES: Record<RhythmType, string> = {
 export default function RhythmsPage() {
   const { openFocusMode } = useFocusMode();
   const [rhythms, setRhythms] = useRhythms();
-  const [allImages, setAllImages] = useLocalStorage<RhythmImage[]>('mm-rhythm-images', []);
+  const [allImages, setAllImages] = useRhythmImages();
 
   // UI
   const [showForm, setShowForm] = useState(false);

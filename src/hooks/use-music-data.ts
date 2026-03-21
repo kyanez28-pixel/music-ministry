@@ -92,3 +92,17 @@ export function useRhythms() { return useSupabaseData<Rhythm>('rhythms'); }
 export function useRhythmLogs() { return useSupabaseData<RhythmPracticeLog>('rhythm_logs'); }
 export function useSongs() { return useSupabaseData<Song>('songs'); }
 export function useSetlists() { return useSupabaseData<WeeklySetlist>('weekly_setlists'); }
+
+// Ejercicios y Técnicas
+export function useExercises() { return useSupabaseData<any>('exercises'); }
+export function useExerciseImages() { return useSupabaseData<any>('exercise_images'); }
+
+// Melodías (Carpetas, Imágenes y Logs adicionales)
+export function useMelodyFolders() { return useSupabaseData<any>('melody_folders'); }
+export function useMelodyImages() { return useSupabaseData<any>('melody_images'); }
+export function useMelodyPracticeLogs() { return useSupabaseData<any>('melody_practice_logs'); }
+
+// Ritmos (Carpetas, Imágenes y Logs adicionales)
+export function useRhythmFolders() { return useSupabaseData<any>('rhythm_folders'); }
+export function useRhythmImages() { return useSupabaseData<any>('rhythm_images'); }
+export function useRhythmPracticeLogs() { return useSupabaseData<any>('rhythm_practice_logs'); }
