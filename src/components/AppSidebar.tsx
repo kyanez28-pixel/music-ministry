@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Timer, List, Music2, BookOpen,
-  Guitar, Drum, BarChart3, Cross, BookMarked, Clock4, Download
+  Guitar, Drum, BarChart3, Cross, BookMarked, Clock4, Download, Upload
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -22,8 +22,9 @@ import { useInstruments } from '@/hooks/use-instruments';
 import { Settings2 } from 'lucide-react';
 import { InstrumentDef } from '@/types/music';
 import { InstrumentSettings } from './InstrumentSettings';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { usePWAInstall } from '@/hooks/use-pwa-install';
+import { toast } from 'sonner';
 
 const generalItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard, desc: 'Vista general de tu progreso y racha' },
@@ -191,6 +192,69 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        {/* Datos: Export / Import */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-muted-foreground text-xs uppercase tracking-wider font-body">
+            {!collapsed && 'Mis Datos'}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <AppTooltip content="Descargar respaldo de todos mis datos">
+                  <SidebarMenuButton
+                    onClick={() => {
+                      const keys = ['mm-exercises','mm-exercise-images','mm-melodies-v2','mm-melody-folders','mm-melody-images','mm-melody-logs','mm-rhythms','mm-rhythm-images','mm-practice-sessions','mm-instruments','mm-scale-videos','mm-harmony-videos'];
+                      const backup: Record<string, string> = {};
+                      keys.forEach(k => { const v = localStorage.getItem(k); if (v && v !== '[]' && v !== '{}') backup[k] = v; });
+                      if (!Object.keys(backup).length) { toast.info('No hay datos locales para exportar'); return; }
+                      const a = document.createElement('a');
+                      a.href = URL.createObjectURL(new Blob([JSON.stringify(backup)], { type: 'application/json' }));
+                      a.download = `musica-backup-${new Date().toISOString().split('T')[0]}.json`;
+                      a.click();
+                      toast.success('¡Respaldo descargado!');
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {!collapsed && <span>Exportar datos</span>}
+                  </SidebarMenuButton>
+                </AppTooltip>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <AppTooltip content="Importar datos desde archivo">
+                  <label className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 transition-colors text-sm w-full">
+                    <Upload className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span>Importar datos</span>}
+                    <input
+                      type="file"
+                      accept=".json"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          try {
+                            const backup = JSON.parse(ev.target?.result as string);
+                            let count = 0;
+                            Object.entries(backup).forEach(([key, value]) => {
+                              if (typeof value === 'string') { localStorage.setItem(key, value); count++; }
+                            });
+                            toast.success(`¡${count} secciones importadas! Recargando...`);
+                            setTimeout(() => window.location.reload(), 1500);
+                          } catch { toast.error('Archivo inválido'); }
+                        };
+                        reader.readAsText(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </AppTooltip>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <InstrumentSettings open={showSettings} onOpenChange={setShowSettings} />
     </Sidebar>

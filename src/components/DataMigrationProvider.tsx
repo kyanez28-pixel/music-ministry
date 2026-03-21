@@ -103,32 +103,6 @@ export const DataMigrationProvider: React.FC<{ children: React.ReactNode }> = ({
     <>
       {children}
 
-      {/* Floating Export/Import buttons */}
-      {user && (
-        <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2">
-          <button
-            onClick={handleExport}
-            title="Exportar mis datos a archivo"
-            className="w-10 h-10 rounded-full bg-background/80 border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card transition-all backdrop-blur"
-          >
-            <Download className="h-4 w-4" />
-          </button>
-          <label
-            title="Importar datos desde archivo"
-            className="w-10 h-10 rounded-full bg-background/80 border border-border shadow-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-card transition-all backdrop-blur cursor-pointer"
-          >
-            <UploadIcon className="h-4 w-4" />
-            <input
-              ref={importRef}
-              type="file"
-              accept=".json"
-              onChange={handleImport}
-              className="hidden"
-            />
-          </label>
-        </div>
-      )}
-
       {/* Migration Prompt */}
       {showPrompt && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
