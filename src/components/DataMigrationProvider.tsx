@@ -28,7 +28,10 @@ export const DataMigrationProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (!user) return;
 
-    // Check if there is any non-empty local data to migrate
+    // If the user already dismissed or exported, never show again
+    if (localStorage.getItem('mm-prompt-dismissed')) return;
+
+    // Check if there is any non-empty local data
     const hasLocalData = LOCAL_KEYS.some(key => {
       const data = localStorage.getItem(key);
       return data && data !== '[]' && data !== '{}' && data !== 'null';
@@ -141,7 +144,10 @@ export const DataMigrationProvider: React.FC<{ children: React.ReactNode }> = ({
                 </p>
               </div>
               <button
-                onClick={() => setShowPrompt(false)}
+                onClick={() => {
+                  localStorage.setItem('mm-prompt-dismissed', 'true');
+                  setShowPrompt(false);
+                }}
                 className="text-muted-foreground hover:text-foreground shrink-0"
               >
                 <X className="h-4 w-4" />
@@ -149,7 +155,10 @@ export const DataMigrationProvider: React.FC<{ children: React.ReactNode }> = ({
             </div>
 
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setShowPrompt(false)}>
+              <Button variant="ghost" size="sm" onClick={() => {
+                localStorage.setItem('mm-prompt-dismissed', 'true');
+                setShowPrompt(false);
+              }}>
                 Ahora no
               </Button>
               <Button size="sm" onClick={handleExport} className="premium-btn-glow">
