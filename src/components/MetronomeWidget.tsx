@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Minus, Plus, Play, Square, Music, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Minus, Plus, Play, Square, Music, X, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MetronomeEngine } from '@/lib/metronome-engine';
-import { toast } from 'sonner';
 
 export const MetronomeWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,43 +11,41 @@ export const MetronomeWidget: React.FC = () => {
   const [currentBeat, setCurrentBeat] = useState(-1);
   const [tapTimes, setTapTimes] = useState<number[]>([]);
 
+  // Drag state — saved in localStorage so it persists across reloads
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
+    try {
+      const saved = localStorage.getItem('mm-widget-pos');
+      return saved ? JSON.parse(saved) : { x: window.innerWidth - 90, y: window.innerHeight - 110 };
+    } catch {
+      return { x: window.innerWidth - 90, y: window.innerHeight - 110 };
+    }
+  });
+  const isDragging = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const didDrag = useRef(false);
+
   const engineRef = useRef<MetronomeEngine | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize engine only once
   useEffect(() => {
     engineRef.current = new MetronomeEngine();
-    return () => {
-      engineRef.current?.stop();
-    };
+    return () => { engineRef.current?.stop(); };
   }, []);
 
   const togglePlay = () => {
     if (!engineRef.current) return;
-
     if (isPlaying) {
       engineRef.current.stop();
       setCurrentBeat(-1);
       setIsPlaying(false);
     } else {
-      engineRef.current.start(bpm, beatsPerMeasure, (beat: number) => {
-        setCurrentBeat(beat);
-      });
+      engineRef.current.start(bpm, beatsPerMeasure, (beat: number) => setCurrentBeat(beat));
       setIsPlaying(true);
     }
   };
 
-  useEffect(() => {
-    if (isPlaying && engineRef.current) {
-      engineRef.current.updateBpm(bpm);
-    }
-  }, [bpm, isPlaying]);
-
-  useEffect(() => {
-    if (isPlaying && engineRef.current) {
-      engineRef.current.updateBeats(beatsPerMeasure);
-    }
-  }, [beatsPerMeasure, isPlaying]);
+  useEffect(() => { if (isPlaying && engineRef.current) engineRef.current.updateBpm(bpm); }, [bpm, isPlaying]);
+  useEffect(() => { if (isPlaying && engineRef.current) engineRef.current.updateBeats(beatsPerMeasure); }, [beatsPerMeasure, isPlaying]);
 
   const handleTap = () => {
     const now = Date.now();
@@ -57,30 +54,101 @@ export const MetronomeWidget: React.FC = () => {
       if (recent.length >= 2) {
         const intervals = recent.slice(1).map((t, i) => t - recent[i]);
         const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-        const newBpm = Math.round(60000 / avg);
-        const clamped = Math.min(250, Math.max(20, newBpm));
-        setBpm(clamped);
+        setBpm(Math.min(250, Math.max(20, Math.round(60000 / avg))));
       }
       return recent;
     });
   };
 
-  // Close when clicking outside
+  // --- Drag logic ---
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only drag from the button itself, not from controls inside the panel
+    isDragging.current = true;
+    didDrag.current = false;
+    dragOffset.current = {
+      x: e.clientX - pos.x,
+      y: e.clientY - pos.y,
+    };
+    e.preventDefault();
+  }, [pos]);
+
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isOpen && containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      didDrag.current = true;
+      const newX = Math.min(window.innerWidth - 64, Math.max(0, e.clientX - dragOffset.current.x));
+      const newY = Math.min(window.innerHeight - 64, Math.max(0, e.clientY - dragOffset.current.y));
+      setPos({ x: newX, y: newY });
+    };
+    const onMouseUp = () => {
+      if (isDragging.current) {
+        isDragging.current = false;
+        // Save position
+        setPos(p => {
+          localStorage.setItem('mm-widget-pos', JSON.stringify(p));
+          return p;
+        });
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
+  // Touch support
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    isDragging.current = true;
+    didDrag.current = false;
+    dragOffset.current = {
+      x: e.touches[0].clientX - pos.x,
+      y: e.touches[0].clientY - pos.y,
+    };
+  }, [pos]);
+
+  useEffect(() => {
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isDragging.current) return;
+      didDrag.current = true;
+      const newX = Math.min(window.innerWidth - 64, Math.max(0, e.touches[0].clientX - dragOffset.current.x));
+      const newY = Math.min(window.innerHeight - 64, Math.max(0, e.touches[0].clientY - dragOffset.current.y));
+      setPos({ x: newX, y: newY });
+      e.preventDefault();
+    };
+    const onTouchEnd = () => {
+      if (isDragging.current) {
+        isDragging.current = false;
+        setPos(p => { localStorage.setItem('mm-widget-pos', JSON.stringify(p)); return p; });
+      }
+    };
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    return () => {
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, []);
+
+  const handleButtonClick = () => {
+    // Only toggle if it wasn't a drag
+    if (!didDrag.current) setIsOpen(o => !o);
+    didDrag.current = false;
+  };
 
   return (
-    <div ref={containerRef} className="fixed bottom-24 right-6 z-50 flex flex-col items-end gap-3">
-      {/* Control Panel */}
+    <div
+      ref={containerRef}
+      className="fixed z-50 flex flex-col items-center gap-3"
+      style={{ left: pos.x, top: pos.y, userSelect: 'none' }}
+    >
+      {/* Control Panel — positioned above the button */}
       {isOpen && (
-        <div className="glass-panel p-4 rounded-2xl border-white/10 shadow-2xl w-64 animate-in fade-in slide-in-from-bottom-5 duration-300">
+        <div
+          className="glass-panel p-4 rounded-2xl border-white/10 shadow-2xl w-64 animate-in fade-in slide-in-from-bottom-5 duration-300 mb-2"
+          style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: '12px' }}
+        >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <Music className="h-3 w-3" /> Metrónomo
@@ -106,7 +174,7 @@ export const MetronomeWidget: React.FC = () => {
 
           {/* BPM Control */}
           <div className="flex items-center justify-between gap-4 mb-6">
-            <button 
+            <button
               onClick={() => setBpm(b => Math.max(20, b - 1))}
               className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
             >
@@ -116,7 +184,7 @@ export const MetronomeWidget: React.FC = () => {
               <span className="text-3xl font-mono font-bold text-primary block leading-none">{bpm}</span>
               <span className="text-[10px] text-muted-foreground uppercase font-medium">BPM</span>
             </div>
-            <button 
+            <button
               onClick={() => setBpm(b => Math.min(250, b + 1))}
               className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
             >
@@ -128,8 +196,8 @@ export const MetronomeWidget: React.FC = () => {
             <Button size="sm" variant="outline" className="text-[10px] h-7 border-white/5 bg-white/5" onClick={handleTap}>
               TAP TEMPO
             </Button>
-            <select 
-              value={beatsPerMeasure} 
+            <select
+              value={beatsPerMeasure}
               onChange={e => setBeatsPerMeasure(Number(e.target.value))}
               className="text-[10px] h-7 px-2 rounded-md bg-white/5 border border-white/5 text-foreground leading-none outline-none"
             >
@@ -143,8 +211,8 @@ export const MetronomeWidget: React.FC = () => {
           <button
             onClick={togglePlay}
             className={`w-full py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-sm
-              ${isPlaying 
-                ? 'bg-destructive/20 text-destructive border border-destructive/30' 
+              ${isPlaying
+                ? 'bg-destructive/20 text-destructive border border-destructive/30'
                 : 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
               }`}
           >
@@ -157,19 +225,21 @@ export const MetronomeWidget: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Button */}
+      {/* Floating Button — drag handle */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform
-          ${isOpen ? 'bg-background border-white/10 scale-90' : 'bg-primary text-primary-foreground hover:scale-110 active:scale-95'}
+        onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
+        onClick={handleButtonClick}
+        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 cursor-grab active:cursor-grabbing
+          ${isOpen ? 'bg-background border border-white/10 scale-90' : 'bg-primary text-primary-foreground hover:scale-110 active:scale-95'}
           ${isPlaying && !isOpen ? 'animate-pulse' : ''}
         `}
         style={{
-          boxShadow: isPlaying && !isOpen ? '0 0 20px hsl(var(--primary) / 0.5)' : ''
+          boxShadow: isPlaying && !isOpen ? '0 0 20px hsl(var(--primary) / 0.5)' : '',
         }}
       >
         {isOpen ? (
-          <ChevronDown className="h-6 w-6" />
+          <GripVertical className="h-5 w-5 text-muted-foreground" />
         ) : (
           <div className="relative">
             <Music className="h-6 w-6" />

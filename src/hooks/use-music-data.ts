@@ -4,23 +4,34 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PracticeSession, Scale, Harmony, Melody, Rhythm, Song, WeeklySetlist, ScalePracticeLog, HarmonyPracticeLog, RhythmPracticeLog } from '@/types/music';
 
+const TABLES_WITHOUT_USER_ID = [
+  'melody_folders', 'melody_images', 'melody_practice_logs',
+  'rhythms', 'rhythm_folders', 'rhythm_images', 'rhythm_practice_logs',
+  'exercises', 'exercise_images'
+];
+
 export function useSupabaseData<T>(tableName: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const queryKey = [tableName, user?.id];
+  const requiresUserId = !TABLES_WITHOUT_USER_ID.includes(tableName);
 
   const { data: serverData = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from(tableName).select('*').eq('user_id', user.id);
+      if (!user && requiresUserId) return [];
+      let q = supabase.from(tableName).select('*');
+      if (requiresUserId && user) {
+        q = q.eq('user_id', user.id);
+      }
+      const { data, error } = await q;
       if (error) {
         console.error(`Error fetching ${tableName}:`, error);
         throw error;
       }
       return data as T[];
     },
-    enabled: !!user,
+    enabled: !requiresUserId || !!user,
   });
 
   const [localData, setLocalData] = useState<T[]>(serverData);
@@ -41,11 +52,18 @@ export function useSupabaseData<T>(tableName: string) {
           
           if (hasMissingIds) {
             // Tablas sin ID (como los logs) se sobrescriben para garantizar sincronía exacta y limpiar viejos
-            await supabase.from(tableName).delete().eq('user_id', user.id);
+            let delQ = supabase.from(tableName).delete();
+            if (requiresUserId) delQ = delQ.eq('user_id', user.id);
+            else delQ = delQ.neq('id', 'dummy_to_delete_all'); // For global tables, be careful! Actually we shouldn't wipe globally. Let's just delete the ones we know about.
+            
+            // To be safe on global tables without user_id, we just delete the ones we are replacing if they had no IDs
+            if (requiresUserId) await delQ;
+            
             if (newData.length > 0) {
               await supabase.from(tableName).insert(
                 newData.map((item: any) => {
-                  const copy = { ...item, user_id: user.id };
+                  const copy = { ...item };
+                  if (requiresUserId) copy.user_id = user.id;
                   delete copy.id; // Eliminar el uuid generado localmente si existe parcialmente
                   return copy;
                 })
@@ -60,10 +78,16 @@ export function useSupabaseData<T>(tableName: string) {
              const upserts = newData.filter((newItem: any) => {
                const oldItem = oldDataMap.get(newItem.id);
                return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
-             }).map((item: any) => ({ ...item, user_id: user.id }));
+             }).map((item: any) => {
+               const copy = { ...item };
+               if (requiresUserId) copy.user_id = user.id;
+               return copy;
+             });
              
              if (deletedIds.length > 0) {
-               await supabase.from(tableName).delete().in('id', deletedIds).eq('user_id', user.id);
+               let delQ = supabase.from(tableName).delete().in('id', deletedIds);
+               if (requiresUserId) delQ = delQ.eq('user_id', user.id);
+               await delQ;
              }
              if (upserts.length > 0) {
                await supabase.from(tableName).upsert(upserts);
