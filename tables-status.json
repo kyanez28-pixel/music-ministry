@@ -1,0 +1,8 @@
+{
+  "melodies": "OK",
+  "melody_folders": "Could not find the table 'public.melody_folders' in the schema cache",
+  "melody_images": "Could not find the table 'public.melody_images' in the schema cache",
+  "melody_practice_logs": "Could not find the table 'public.melody_practice_logs' in the schema cache",
+  "rhythms": "OK",
+  "rhythm_folders": "Could not find the table 'public.rhythm_folders' in the schema cache"
+}

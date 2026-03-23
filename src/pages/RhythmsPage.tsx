@@ -1,23 +1,24 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useRhythms } from '@/hooks/use-music-data';
-import { useLocalStorage } from '@/hooks/use-local-storage';
+import { useRhythms, useRhythmFolders, useRhythmImages } from '@/hooks/use-music-data';
 import { generateId } from '@/lib/music-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Play, Plus, Trash2, Upload, X, ZoomIn, ArrowLeft, ArrowRight, BookOpen, Music2, Tag, Maximize2 } from 'lucide-react';
+import { Play, Plus, FolderPlus, Trash2, Upload, X, ZoomIn, ArrowLeft, ArrowRight, BookOpen, Music2, Tag, Maximize2, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Rhythm, RhythmType } from '@/types/music';
 import { useFocusMode } from '@/contexts/FocusModeContext';
 import { AppTooltip } from '@/components/AppTooltip';
 
 interface RhythmImage {
   id: string;
-  rhythmId: string;
-  dataUrl: string;
-  fileName: string;
+  rhythm_id: string;
+  storage_path: string;
+  file_name: string;
 }
+
+const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
 const RHYTHM_TYPES: Record<RhythmType, string> = {
   balada: 'Balada',
@@ -31,7 +32,15 @@ const RHYTHM_TYPES: Record<RhythmType, string> = {
 export default function RhythmsPage() {
   const { openFocusMode } = useFocusMode();
   const [rhythms, setRhythms] = useRhythms();
-  const [allImages, setAllImages] = useLocalStorage<RhythmImage[]>('mm-rhythm-images', []);
+  const [allImages, setAllImages] = useRhythmImages();
+  const [folders, setFolders] = useRhythmFolders();
+  const [showFolderForm, setShowFolderForm] = useState(false);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [filterFolder, setFilterFolder] = useState<string | 'todos'>('todos');
+  const [mFolderId, setMFolderId] = useState<string | null>(null);
+  const [fFolderName, setFFolderName] = useState('');
+  const [fFolderColor, setFFolderColor] = useState(FOLDER_COLORS[0]);
 
   // UI
   const [showForm, setShowForm] = useState(false);
@@ -53,11 +62,12 @@ export default function RhythmsPage() {
   // ─── Derived ──────────────────────────────────────────────────────────────────
 
   const editingImages = useMemo(() =>
-    editingId ? allImages.filter((i: any) => i.rhythmId === editingId) : [],
+    editingId ? allImages.filter((i: any) => i.rhythm_id === editingId) : [],
   [allImages, editingId]);
 
   const filtered = useMemo(() => {
     let list = rhythms;
+    if (filterFolder !== 'todos') list = list.filter((r: any) => r.folder_id === filterFolder);
     if (filterType !== 'todos') list = list.filter((r: any) => r.type === filterType);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -67,13 +77,23 @@ export default function RhythmsPage() {
       );
     }
     return list;
-  }, [rhythms, filterType, search]);
+  }, [rhythms, filterType, search, filterFolder]);
+
+  const groupedRhythms = useMemo(() => {
+    const groups = folders.map((f: any) => ({
+      folder: f,
+      items: filtered.filter((r: any) => r.folder_id === f.id),
+    }));
+    const unfoldered = filtered.filter((r: any) => !r.folder_id);
+    return { groups, unfoldered };
+  }, [folders, filtered]);
 
   const imagesByRhythm = useMemo(() => {
     const map: Record<string, RhythmImage[]> = {};
     allImages.forEach((img: any) => {
-      if (!map[img.rhythmId]) map[img.rhythmId] = [];
-      map[img.rhythmId].push(img);
+      const rid = img.rhythm_id;
+      if (!map[rid]) map[rid] = [];
+      map[rid].push(img);
     });
     return map;
   }, [allImages]);
@@ -82,15 +102,15 @@ export default function RhythmsPage() {
 
   const resetForm = () => {
     setShowForm(false); setEditingId(null);
-    setFName(''); setFType('balada'); setFTime('');
+    setFName(''); setMFolderId(null); setFType('balada'); setFTime('');
     setFBpm(0); setFDescription(''); setFVideoUrl('');
   };
 
   const openEdit = (r: Rhythm) => {
     setEditingId(r.id);
-    setFName(r.name); setFType(r.type); setFTime(r.timeSignature);
-    setFBpm(r.bpm); setFDescription(r.description);
-    setFVideoUrl(r?.videoUrl ?? '');
+    setFName(r.name); setMFolderId(r.folder_id || null); setFType(r.type); setFTime(r.time_signature || '');
+    setFBpm(r.bpm || 0); setFDescription(r.description || '');
+    setFVideoUrl(r.video_url || '');
     setShowForm(true);
   };
 
@@ -98,12 +118,13 @@ export default function RhythmsPage() {
     if (!fName.trim()) { toast.error('El nombre es requerido'); return; }
     const rhm: Rhythm = {
       id: editingId ?? generateId(),
+      folder_id: mFolderId,
       name: fName.trim(),
       type: fType,
-      timeSignature: fTime,
+      time_signature: fTime,
       bpm: fBpm,
       description: fDescription,
-      videoUrl: fVideoUrl,
+      video_url: fVideoUrl,
     };
     if (editingId) {
       setRhythms((prev: any[]) => prev.map((r: any) => r.id === editingId ? rhm : r));
@@ -118,9 +139,42 @@ export default function RhythmsPage() {
   const deleteRhythm = () => {
     if (!editingId) return;
     setRhythms((prev: any[]) => prev.filter((r: any) => r.id !== editingId));
-    setAllImages((prev: any[]) => prev.filter((i: any) => i.rhythmId !== editingId));
+    setAllImages((prev: any[]) => prev.filter((i: any) => i.rhythm_id !== editingId));
     toast.success('Ritmo eliminado');
     resetForm();
+  };
+
+  const resetFolderForm = () => {
+    setShowFolderForm(false);
+    setEditingFolderId(null);
+    setFFolderName('');
+    setFFolderColor(FOLDER_COLORS[0]);
+  };
+
+  const openEditFolder = (f: any) => {
+    setEditingFolderId(f.id);
+    setFFolderName(f.name);
+    setFFolderColor(f.color || FOLDER_COLORS[0]);
+    setShowFolderForm(true);
+  };
+
+  const saveFolder = () => {
+    if (!fFolderName.trim()) { toast.error('El nombre es requerido'); return; }
+    if (editingFolderId) {
+      setFolders((prev: any[]) => prev.map((f: any) => f.id === editingFolderId ? { ...f, name: fFolderName, color: fFolderColor } : f));
+      toast.success('Carpeta actualizada');
+    } else {
+      setFolders((prev: any[]) => [...prev, { id: generateId(), name: fFolderName.trim(), color: fFolderColor }]);
+      toast.success('Carpeta creada');
+    }
+    resetFolderForm();
+  };
+
+  const deleteFolder = (id: string) => {
+    setFolders((prev: any[]) => prev.filter((f: any) => f.id !== id));
+    setRhythms((prev: any[]) => prev.map((m: any) => m.folder_id === id ? { ...m, folder_id: null } : m));
+    resetFolderForm();
+    toast.success('Carpeta eliminada');
   };
 
   // ─── Images ───────────────────────────────────────────────────────────────────
@@ -142,8 +196,8 @@ export default function RhythmsPage() {
     try {
       const newImages: RhythmImage[] = await Promise.all(
         imageFiles.map(async file => ({
-          id: generateId(), rhythmId: editingId,
-          dataUrl: await fileToBase64(file), fileName: file.name,
+          id: generateId(), rhythm_id: editingId,
+          storage_path: await fileToBase64(file), file_name: file.name,
         }))
       );
       setAllImages((prev: any[]) => [...prev, ...newImages]);
@@ -165,8 +219,9 @@ export default function RhythmsPage() {
   }, [showForm, handleFiles]);
 
   useEffect(() => {
-    document.addEventListener('paste', handlePaste as any);
-    return () => document.removeEventListener('paste', handlePaste as any);
+    const pasteHandler = (e: Event) => handlePaste(e as unknown as ClipboardEvent);
+    document.addEventListener('paste', pasteHandler);
+    return () => document.removeEventListener('paste', pasteHandler);
   }, [handlePaste]);
 
   const deleteImage = (id: string) => {
@@ -193,17 +248,24 @@ export default function RhythmsPage() {
         <div>
           <h1 className="page-title">🥁 Ritmos</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center">
-            {rhythms.length} ritmos registrados
+            {rhythms.length} ritmos · {folders.length} carpetas
             <AppTooltip content="El total de patrones rítmicos que tienes guardados.">
               <span className="ml-1 cursor-help opacity-50">ⓘ</span>
             </AppTooltip>
           </p>
         </div>
-        <AppTooltip content="Crea un nuevo patrón rítmico personalizado.">
-          <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Nuevo ritmo
-          </Button>
-        </AppTooltip>
+        <div className="flex gap-2">
+          <AppTooltip content="Crea una nueva carpeta para organizar tus ritmos.">
+            <Button variant="outline" size="sm" onClick={() => { resetFolderForm(); setShowFolderForm(true); }}>
+              <FolderPlus className="h-4 w-4 mr-1" /> Carpeta
+            </Button>
+          </AppTooltip>
+          <AppTooltip content="Crea un nuevo patrón rítmico personalizado.">
+            <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
+              <Plus className="h-4 w-4 mr-1" /> Nuevo ritmo
+            </Button>
+          </AppTooltip>
+        </div>
       </div>
 
       {/* Filters */}
@@ -213,11 +275,27 @@ export default function RhythmsPage() {
         <select value={filterType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterType(e.target.value as any)}
           className="bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
           <option value="todos">Todos los géneros</option>
-          {(Object.keys(RHYTHM_TYPES) as RhythmType[]).map((t: string) => (
-            <option key={t} value={t}>{RHYTHM_TYPES[t as RhythmType]}</option>
+          {(Object.keys(RHYTHM_TYPES) as RhythmType[]).map((t) => (
+            <option key={t} value={t}>{RHYTHM_TYPES[t]}</option>
           ))}
         </select>
       </div>
+
+      {folders.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          <button onClick={() => setFilterFolder('todos')}
+            className={`chip text-xs ${filterFolder === 'todos' ? 'chip-active' : ''}`}>
+            Todas
+          </button>
+          {folders.map((f: any) => (
+            <button key={f.id} onClick={() => setFilterFolder(f.id)}
+              className={`chip text-xs ${filterFolder === f.id ? 'chip-active' : ''}`}
+              style={filterFolder !== f.id ? { borderLeft: `3px solid ${f.color}` } : {}}>
+              {f.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Empty state */}
       {rhythms.length === 0 && (
@@ -231,224 +309,195 @@ export default function RhythmsPage() {
       )}
 
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((rhm: any) => {
-          const imgs = imagesByRhythm[rhm.id] ?? [];
-          return (
-            <div key={rhm.id} className={`stat-card group overflow-hidden transition-all duration-300 ${
-              rhm.type === 'balada' ? 'hover:shadow-[0_0_30px_-10px_rgba(59,130,246,0.2)]' :
-              rhm.type === 'pop' ? 'hover:shadow-[0_0_30px_-10px_rgba(236,72,153,0.2)]' :
-              rhm.type === 'latino' ? 'hover:shadow-[0_0_30px_-10px_rgba(234,179,8,0.2)]' :
-              'hover:shadow-[0_0_30px_-10px_rgba(168,162,158,0.2)]'
-            }`}>
-              {/* Media thumbnail */}
-              {imgs.length > 0 ? (
-                <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/img"
-                  onClick={() => openViewer(rhm.id)}>
-                  <img src={imgs[0].dataUrl} alt={rhm.name}
-                    className="w-full h-40 object-cover transition-transform duration-700 group-hover/img:scale-110" />
-                  <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/30 flex items-center justify-center transition-all duration-300">
-                    <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover/img:opacity-100 scale-90 group-hover/img:scale-100 transition-all duration-300 drop-shadow-2xl" />
-                  </div>
-                  {imgs.length > 1 && (
-                    <span className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full font-mono border border-white/10">
-                      {imgs.length} fotos
-                    </span>
-                  )}
-                </div>
-              ) : rhm.videoUrl && getYouTubeId(rhm.videoUrl) ? (
-                <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/vid"
-                  onClick={() => window.open(rhm.videoUrl, '_blank')}>
-                  <img src={`https://img.youtube.com/vi/${getYouTubeId(rhm.videoUrl!)}/mqdefault.jpg`} alt="Video"
-                    className="w-full h-40 object-cover transition-transform duration-700 group-hover/vid:scale-110" />
-                  <div className="absolute inset-0 bg-black/40 group-hover/vid:bg-black/20 flex items-center justify-center transition-all duration-300">
-                    <div className="w-14 h-14 bg-red-600/90 group-hover/vid:bg-red-500 group-hover/vid:scale-110 rounded-full flex items-center justify-center shadow-[0_0_25px_rgba(220,38,38,0.6)] transition-all duration-300">
-                      <Play className="h-6 w-6 text-white fill-white ml-0.5" />
+      <div className="space-y-6">
+        {groupedRhythms.groups.map(({ folder, items }) => (
+          <div key={folder.id}>
+            <button
+              onClick={() => setCollapsedFolders((prev) => {
+                const next = new Set(prev);
+                next.has(folder.id) ? next.delete(folder.id) : next.add(folder.id);
+                return next;
+              })}
+              className="flex items-center gap-2 group w-full text-left mb-3"
+            >
+              {collapsedFolders.has(folder.id)
+                  ? <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
+              <span className="section-title text-base">{folder.name}</span>
+              <span className="text-xs text-muted-foreground">({items.length})</span>
+              <button
+                onClick={e => { e.stopPropagation(); openEditFolder(folder); }}
+                className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground"
+              >
+                editar
+              </button>
+            </button>
+            {!collapsedFolders.has(folder.id) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 ml-5">
+                {items.map((rhm: any) => {
+                  const imgs = imagesByRhythm[rhm.id] ?? [];
+                  return (
+                    <div key={rhm.id} className="stat-card group overflow-hidden relative">
+                      {imgs.length > 0 ? (
+                        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/img" onClick={() => openViewer(rhm.id)}>
+                          <img src={imgs[0].storage_path} alt={rhm.name} className="w-full h-40 object-cover transition-transform duration-700 group-hover/img:scale-110" />
+                          <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/30 flex items-center justify-center transition-all duration-300">
+                            <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover/img:opacity-100 transition-all" />
+                          </div>
+                        </div>
+                      ) : rhm.video_url && getYouTubeId(rhm.video_url) ? (
+                        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/vid" onClick={() => window.open(rhm.video_url, '_blank')}>
+                          <img src={`https://img.youtube.com/vi/${getYouTubeId(rhm.video_url!)}/mqdefault.jpg`} alt="Video" className="w-full h-40 object-cover" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Play className="h-8 w-8 text-white fill-white" /></div>
+                        </div>
+                      ) : null}
+
+                      <AppTooltip content="Modo Enfoque">
+                        <button onClick={(e) => { e.stopPropagation(); openFocusMode({...rhm, title: rhm.name, category: RHYTHM_TYPES[(rhm.type as RhythmType)] || 'Ritmo'} as any, imgs as any); }}
+                          className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/80 z-10">
+                          <Maximize2 className="h-3.5 w-3.5" />
+                        </button>
+                      </AppTooltip>
+
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-lg leading-tight cursor-pointer hover:text-primary transition-colors" onClick={() => openEdit(rhm)}>{rhm.name}</h4>
+                        <div className="flex gap-4 text-[11px] text-muted-foreground/80">
+                          {rhm.time_signature && <span>🕒 {rhm.time_signature}</span>}
+                          {rhm.bpm > 0 && <span className="font-mono">♩ {rhm.bpm} BPM</span>}
+                        </div>
+                        {rhm.description && <p className="text-xs text-muted-foreground/70 line-clamp-2">{rhm.description}</p>}
+                        <div className="flex items-center gap-2 pt-3 border-t border-white/5">
+                          {rhm.video_url && <Button variant="outline" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => window.open(rhm.video_url, '_blank')}><Play className="h-3 w-3 mr-1 fill-current" /> Video</Button>}
+                          <Button variant="secondary" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => openEdit(rhm)}>Ajustes</Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {groupedRhythms.unfoldered.length > 0 && (
+          <div>
+            {folders.length > 0 && <h3 className="section-title text-base mb-3 opacity-70">Otros Ritmos ({groupedRhythms.unfoldered.length})</h3>}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groupedRhythms.unfoldered.map((rhm: any) => {
+                const imgs = imagesByRhythm[rhm.id] ?? [];
+                return (
+                  <div key={rhm.id} className="stat-card group overflow-hidden relative">
+                    {imgs.length > 0 ? (
+                        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/img" onClick={() => openViewer(rhm.id)}>
+                          <img src={imgs[0].storage_path} alt={rhm.name} className="w-full h-40 object-cover transition-transform duration-700 group-hover/img:scale-110" />
+                          <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/30 flex items-center justify-center transition-all duration-300">
+                            <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover/img:opacity-100 transition-all" />
+                          </div>
+                        </div>
+                    ) : rhm.video_url && getYouTubeId(rhm.video_url) ? (
+                        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/vid" onClick={() => window.open(rhm.video_url, '_blank')}>
+                          <img src={`https://img.youtube.com/vi/${getYouTubeId(rhm.video_url!)}/mqdefault.jpg`} alt="Video" className="w-full h-40 object-cover" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Play className="h-8 w-8 text-white fill-white" /></div>
+                        </div>
+                    ) : null}
+
+                    <AppTooltip content="Modo Enfoque">
+                      <button onClick={(e) => { e.stopPropagation(); openFocusMode({...rhm, title: rhm.name, category: RHYTHM_TYPES[(rhm.type as RhythmType)] || 'Ritmo'} as any, imgs as any); }}
+                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/80 z-10">
+                        <Maximize2 className="h-3.5 w-3.5" />
+                      </button>
+                    </AppTooltip>
+
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-lg leading-tight cursor-pointer hover:text-primary transition-colors" onClick={() => openEdit(rhm)}>{rhm.name}</h4>
+                      <div className="flex gap-4 text-[11px] text-muted-foreground/80">
+                        {rhm.time_signature && <span>🕒 {rhm.time_signature}</span>}
+                        {rhm.bpm > 0 && <span className="font-mono">♩ {rhm.bpm} BPM</span>}
+                      </div>
+                      {rhm.description && <p className="text-xs text-muted-foreground/70 line-clamp-2">{rhm.description}</p>}
+                      <div className="flex items-center gap-2 pt-3 border-t border-white/5">
+                        {rhm.video_url && <Button variant="outline" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => window.open(rhm.video_url, '_blank')}><Play className="h-3 w-3 mr-1 fill-current" /> Video</Button>}
+                        <Button variant="secondary" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => openEdit(rhm)}>Ajustes</Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : null}
-
-              {/* Focus Mode Overlay Trigger */}
-              <AppTooltip content="Entrar en Modo Enfoque (Pantalla completa)">
-                <button 
-                  onClick={(e: React.MouseEvent) => { 
-                    e.stopPropagation(); 
-                    openFocusMode(
-                      { ...rhm, title: rhm.name, category: RHYTHM_TYPES[rhm.type as RhythmType] || 'Ritmo' } as any, 
-                      imgs as any
-                    ); 
-                  }}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-all hover:bg-primary/80 z-10"
-                >
-                  <Maximize2 className="h-3.5 w-3.5" />
-                </button>
-              </AppTooltip>
-
-              {/* Text info */}
-              <div className="space-y-3">
-                {!imgs.length && !rhm.videoUrl && (
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-primary/80">
-                    {RHYTHM_TYPES[rhm.type]}
-                  </span>
-                )}
-                <h4 className="font-semibold text-lg leading-tight cursor-pointer hover:text-primary transition-colors"
-                  onClick={() => openEdit(rhm)}>
-                  {rhm.name}
-                </h4>
-
-                <div className="flex gap-4 text-[11px] text-muted-foreground/80">
-                  {rhm.timeSignature && <span className="flex items-center gap-1">🕒 {rhm.timeSignature}</span>}
-                  {rhm.bpm > 0 && <span className="font-mono bg-secondary/50 px-1.5 rounded text-[10px]">♩ {rhm.bpm} BPM</span>}
-                </div>
-
-                {rhm.description && (
-                  <p className="text-[12px] text-muted-foreground/70 line-clamp-2 leading-relaxed italic">{rhm.description}</p>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-4 border-t border-white/5">
-                  {rhm.videoUrl && (
-                    <a href={rhm.videoUrl} target="_blank" rel="noopener noreferrer"
-                      className="premium-btn-glow text-[11px] font-bold flex-1 text-center bg-gradient-to-r from-red-500/10 to-red-600/20 border border-red-500/30 text-red-500 py-2 rounded-lg flex items-center justify-center gap-2 hover:from-red-500/20 shadow-sm"
-                      onClick={e => e.stopPropagation()}>
-                      <Play className="h-3 w-3 fill-current" /> Ver ritmos
-                    </a>
-                  )}
-                  <AppTooltip content="Editar detalles o imágenes de este ritmo.">
-                    <button onClick={() => openEdit(rhm)}
-                      className="premium-btn-glow text-[11px] font-bold flex-1 text-center bg-gradient-to-r from-primary/10 to-primary/20 border border-primary/30 text-primary py-2 rounded-lg hover:from-primary/20 shadow-sm">
-                      Ajustes
-                    </button>
-                  </AppTooltip>
-                </div>
-              </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
 
       {filtered.length === 0 && rhythms.length > 0 && (
-        <div className="stat-card py-8 text-center text-muted-foreground">
-          No hay ritmos que coincidan con la búsqueda.
-        </div>
+        <div className="stat-card py-8 text-center text-muted-foreground">No hay ritmos que coincidan con la búsqueda.</div>
       )}
 
-      {/* ─── Form Dialog ─────────────────────────────────────────────────────── */}
-      <Dialog open={showForm} onOpenChange={(open: boolean) => { if (!open) resetForm(); }}>
+      {/* Form Dialog */}
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
         <DialogContent className="bg-card border-border max-w-lg max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display">
-              {editingId ? 'Editar' : 'Nuevo'} Ritmo
-            </DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? 'Editar' : 'Nuevo'} Ritmo</DialogTitle></DialogHeader>
           <div className="space-y-4">
-
             <div>
               <label className="text-xs text-muted-foreground">Nombre *</label>
-              <Input value={fName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFName(e.target.value)}
-                placeholder='Ej: Bossa Nova Acústico' autoFocus />
+              <Input value={fName} onChange={e => setFName(e.target.value)} placeholder='Ej: Bossa Nova Acústico' autoFocus />
             </div>
-
+            <div>
+              <label className="text-xs text-muted-foreground">Carpeta</label>
+              <select value={mFolderId || ''} onChange={e => setMFolderId(e.target.value || null)}
+                className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
+                <option value="">(Sin carpeta)</option>
+                {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground">Género / Tipo</label>
-                <select value={fType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFType(e.target.value as RhythmType)}
+                <label className="text-xs text-muted-foreground">Género</label>
+                <select value={fType} onChange={e => setFType(e.target.value as RhythmType)}
                   className="w-full bg-secondary text-secondary-foreground rounded-md px-2 py-2 text-sm border border-border">
-                  {(Object.keys(RHYTHM_TYPES) as RhythmType[]).map((t: string) => (
-                    <option key={t} value={t}>{RHYTHM_TYPES[t as RhythmType]}</option>
-                  ))}
+                  {Object.entries(RHYTHM_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Compás</label>
-                <Input value={fTime} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFTime(e.target.value)} placeholder="Ej: 4/4, 6/8" />
+                <Input value={fTime} onChange={e => setFTime(e.target.value)} placeholder="Ej: 4/4" />
               </div>
             </div>
-
             <div>
-              <label className="text-xs text-muted-foreground">BPM objetivo</label>
-              <Input type="number" min={0} value={fBpm || ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFBpm(parseInt(e.target.value) || 0)} placeholder="0" />
+              <label className="text-xs text-muted-foreground">BPM</label>
+              <Input type="number" value={fBpm || ''} onChange={e => setFBpm(parseInt(e.target.value) || 0)} />
             </div>
-
             <div>
-              <label className="text-xs text-muted-foreground flex items-center gap-1">
-                <Play className="h-3 w-3" /> Link del video (YouTube, TikTok...)
-              </label>
-              <div className="relative">
-                <Input value={fVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFVideoUrl(e.target.value)}
-                  placeholder="https://youtube.com/watch?v=..." className="pr-10" />
-                {fVideoUrl && (
-                  <button 
-                    onClick={() => setFVideoUrl('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+              <label className="text-xs text-muted-foreground">Video Link</label>
+              <Input value={fVideoUrl} onChange={e => setFVideoUrl(e.target.value)} placeholder="https://..." />
             </div>
-
             <div>
-               <label className="text-xs text-muted-foreground">Notas / Patrón</label>
-               <Textarea value={fDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFDescription(e.target.value)}
-                 rows={3} placeholder="Describe el patrón rítmico, variaciones apoyaturas..." />
+              <label className="text-xs text-muted-foreground">Notas</label>
+              <Textarea value={fDescription} onChange={e => setFDescription(e.target.value)} rows={3} />
             </div>
-
-            {/* Images */}
             <div>
-              <label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
-                <Music2 className="h-3 w-3" /> Imágenes del ritmo
-              </label>
+              <label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">Imágenes</label>
               {editingId ? (
                 <>
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-border rounded-lg p-5 text-center cursor-pointer hover:border-primary/50"
-                  >
-                     {uploadingImages ? (
-                       <span className="text-sm">Subiendo...</span>
-                     ) : (
-                       <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                         <Upload className="h-6 w-6" />
-                         <span className="text-sm">Clic o Ctrl+V para pegar imagen</span>
-                       </div>
-                     )}
+                  <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-border rounded-lg p-5 text-center cursor-pointer hover:border-primary/50">
+                    {uploadingImages ? <span>Subiendo...</span> : <div className="flex flex-col items-center gap-1.5 opacity-60"><Upload className="h-6 w-6" /><span>Subir o pegar imagen</span></div>}
                   </div>
-                  <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
-                    onChange={e => { if (e.target.files) handleFiles(Array.from(e.target.files)); e.target.value = ''; }} />
-
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) handleFiles(Array.from(e.target.files)); e.target.value = ''; }} />
                   {editingImages.length > 0 && (
                     <div className="grid grid-cols-3 gap-2 mt-3">
-                      {editingImages.map((img: any, idx: number) => (
+                      {editingImages.map((img: any) => (
                         <div key={img.id} className="relative group rounded-lg overflow-hidden border aspect-square">
-                          <img src={img.dataUrl} className="w-full h-full object-cover" />
-                          <AppTooltip content="Eliminar esta imagen">
-                            <button onClick={() => deleteImage(img.id)}
-                              className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1 opacity-0 group-hover:opacity-100 shadow-lg hover:scale-110 transition-all">
-                              <X className="h-3 w-3" />
-                            </button>
-                          </AppTooltip>
+                          <img src={img.storage_path} className="w-full h-full object-cover" alt="preview" />
+                          <button onClick={() => deleteImage(img.id)} className="absolute top-1 right-1 bg-destructive text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"><X className="h-3 w-3" /></button>
                         </div>
                       ))}
                     </div>
                   )}
                 </>
-              ) : (
-                <p className="text-xs text-muted-foreground italic bg-secondary/30 rounded-lg p-2 text-center">
-                  💡 Guarda el ritmo primero para poder subir imágenes.
-                </p>
-              )}
+              ) : <p className="text-xs opacity-50 italic">Guarda el ritmo para subir imágenes.</p>}
             </div>
-
-            {/* Actions */}
-            <div className="flex justify-between pt-2 border-t border-border">
-              {editingId ? (
-                <Button variant="destructive" size="sm" onClick={deleteRhythm}>
-                  <Trash2 className="h-3 w-3 mr-1" /> Eliminar
-                </Button>
-              ) : <div />}
+            <div className="flex justify-between pt-2 border-t">
+              {editingId ? <Button variant="destructive" size="sm" onClick={deleteRhythm}>Eliminar</Button> : <div />}
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={resetForm}>Cancelar</Button>
                 <Button size="sm" onClick={saveRhythm}>Guardar</Button>
@@ -457,29 +506,40 @@ export default function RhythmsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Folder Form Dialog */}
+      <Dialog open={showFolderForm} onOpenChange={open => { if (!open) resetFolderForm(); }}>
+        <DialogContent className="bg-card border-border sm:max-w-md">
+          <DialogHeader><DialogTitle>{editingFolderId ? 'Editar' : 'Nueva'} Carpeta</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground">Nombre</label>
+              <Input value={fFolderName} onChange={e => setFFolderName(e.target.value)} placeholder="Nombre..." autoFocus />
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {FOLDER_COLORS.map(c => <button key={c} onClick={() => setFFolderColor(c)} className={`w-8 h-8 rounded-full ${fFolderColor === c ? 'ring-2 ring-white ring-offset-2' : ''}`} style={{ backgroundColor: c }} />)}
+            </div>
+            <div className="flex justify-between pt-4 border-t">
+              {editingFolderId ? <Button variant="destructive" size="sm" onClick={() => deleteFolder(editingFolderId)}>Eliminar</Button> : <div />}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={resetFolderForm}>Cancelar</Button>
+                <Button size="sm" onClick={saveFolder}>Guardar</Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Image Viewer */}
-      <Dialog open={viewerImages.length > 0} onOpenChange={(open: boolean) => { if (!open) setViewerImages([]); }}>
+      <Dialog open={viewerImages.length > 0} onOpenChange={open => { if (!open) setViewerImages([]); }}>
         <DialogContent className="bg-black/95 border-none max-w-5xl max-h-[95vh] p-0 flex flex-col justify-center items-center">
-          <button onClick={() => setViewerImages([])} className="absolute top-4 right-4 text-white/50 hover:text-white">
-            <X className="h-6 w-6" />
-          </button>
-          
-          {viewerImages[viewerIndex] && (
-            <img src={viewerImages[viewerIndex].dataUrl} className="max-w-full max-h-[85vh] object-contain" />
-          )}
-          
+          <button onClick={() => setViewerImages([])} className="absolute top-4 right-4 text-white/50 hover:text-white"><X className="h-6 w-6" /></button>
+          {viewerImages[viewerIndex] && <img src={viewerImages[viewerIndex].storage_path} className="max-w-full max-h-[85vh] object-contain" alt="rhythm" />}
           {viewerImages.length > 1 && (
-            <div className="absolute bottom-4 flex gap-4 bg-black/50 p-2 rounded-full backdrop-blur-md">
-              <button onClick={() => setViewerIndex(i => (i - 1 + viewerImages.length) % viewerImages.length)}
-                className="text-white hover:text-primary"><ArrowLeft className="h-5 w-5" /></button>
-              <div className="flex gap-1.5 items-center">
-                  {viewerImages.map((_, i) => (
-                    <span key={i} className={`w-2 h-2 rounded-full ${i === viewerIndex ? 'bg-primary scale-125' : 'bg-white/40'}`} />
-                  ))}
-              </div>
-              <button onClick={() => setViewerIndex(i => (i + 1) % viewerImages.length)}
-                className="text-white hover:text-primary"><ArrowRight className="h-5 w-5" /></button>
+            <div className="absolute bottom-4 flex gap-4 bg-black/50 p-2 rounded-full">
+              <button onClick={() => setViewerIndex(i => (i - 1 + viewerImages.length) % viewerImages.length)} className="text-white"><ArrowLeft className="h-5 w-5" /></button>
+              <span className="text-white text-sm">{viewerIndex + 1} / {viewerImages.length}</span>
+              <button onClick={() => setViewerIndex(i => (i + 1) % viewerImages.length)} className="text-white"><ArrowRight className="h-5 w-5" /></button>
             </div>
           )}
         </DialogContent>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useLocalStorage } from '@/hooks/use-local-storage';
+import { useExercises, useExerciseFolders, useExerciseImages } from '@/hooks/use-music-data';
 import { generateId, getTodayEC, formatDate } from '@/lib/music-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import {
-  Plus, Trash2, Upload, X, ZoomIn, ArrowLeft, ArrowRight,
+  Plus, FolderPlus, Trash2, Upload, X, ZoomIn, ArrowLeft, ArrowRight,
   ExternalLink, Play, BookOpen, ChevronDown, ChevronRight,
   Music2, Tag, Pencil, Trash, Maximize2
 } from 'lucide-react';
-import type { Exercise, ExerciseImage, ExerciseDifficulty, ExerciseStatus } from '@/types/music';
+import type { Exercise, ExerciseDifficulty, ExerciseStatus } from '@/types/music';
 import { useFocusMode } from '@/contexts/FocusModeContext';
 import { AppTooltip } from '@/components/AppTooltip';
+
+// ExerciseImage shape matching Supabase schema
+interface ExerciseImage {
+  id: string;
+  exercise_id: string;
+  storage_path: string;
+  file_name: string;
+}
+
+const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -77,8 +87,16 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   defaultCategory 
 }) => {
   const { openFocusMode } = useFocusMode();
-  const [exercises, setExercises] = useLocalStorage<Exercise[]>('mm-exercises', []);
-  const [allImages, setAllImages] = useLocalStorage<ExerciseImage[]>('mm-exercise-images', []);
+  const [exercises, setExercises] = useExercises();
+  const [allImages, setAllImages] = useExerciseImages();
+  const [folders, setFolders] = useExerciseFolders();
+  const [showFolderForm, setShowFolderForm] = useState(false);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [filterFolder, setFilterFolder] = useState<string | 'todos'>('todos');
+  const [mFolderId, setMFolderId] = useState<string | null>(null);
+  const [fFolderName, setFFolderName] = useState('');
+  const [fFolderColor, setFFolderColor] = useState(FOLDER_COLORS[0]);
   const today = getTodayEC();
 
   // UI State
@@ -105,25 +123,36 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   // Filter logic
   const filtered = useMemo(() => {
     let list = exercises;
-    if (relatedScaleId) list = list.filter(e => e.relatedScaleId === relatedScaleId);
-    if (relatedHarmonyId) list = list.filter(e => e.relatedHarmonyId === relatedHarmonyId);
+    if (filterFolder !== 'todos') list = list.filter((e: any) => e.folder_id === filterFolder);
+    if (relatedScaleId) list = list.filter((e: any) => e.related_scale_id === relatedScaleId);
+    if (relatedHarmonyId) list = list.filter((e: any) => e.related_harmony_id === relatedHarmonyId);
     
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(e =>
+      list = list.filter((e: any) =>
         e.title.toLowerCase().includes(q) ||
         e.category.toLowerCase().includes(q) ||
         e.description.toLowerCase().includes(q)
       );
     }
     return list;
-  }, [exercises, relatedScaleId, relatedHarmonyId, search]);
+  }, [exercises, relatedScaleId, relatedHarmonyId, search, filterFolder]);
+
+  const groupedExercises = useMemo(() => {
+    const groups = folders.map((f: any) => ({
+      folder: f,
+      items: filtered.filter((e: any) => e.folder_id === f.id),
+    }));
+    const unfoldered = filtered.filter((e: any) => !e.folder_id);
+    return { groups, unfoldered };
+  }, [folders, filtered]);
 
   const imagesByExercise = useMemo(() => {
     const map: Record<string, ExerciseImage[]> = {};
-    allImages.forEach(img => {
-      if (!map[img.exerciseId]) map[img.exerciseId] = [];
-      map[img.exerciseId].push(img);
+    allImages.forEach((img: any) => {
+      const eid = img.exercise_id;
+      if (!map[eid]) map[eid] = [];
+      map[eid].push(img);
     });
     return map;
   }, [allImages]);
@@ -131,7 +160,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   // Actions
   const resetForm = () => {
     setShowForm(false); setEditingId(null);
-    setFTitle(''); setFCategory(defaultCategory || ''); setFInstrument('piano');
+    setFTitle(''); setMFolderId(null); setFCategory(defaultCategory || ''); setFInstrument('piano');
     setFDifficulty('principiante'); setFStatus('pendiente');
     setFBpm(0); setFKey(''); setFDescription('');
     setFVideoUrl(''); setFProgress(0);
@@ -139,10 +168,10 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
 
   const openEdit = (e: Exercise) => {
     setEditingId(e.id);
-    setFTitle(e.title); setFCategory(e.category); setFInstrument(e.instrument);
+    setFTitle(e.title); setMFolderId(e.folder_id || null); setFCategory(e.category); setFInstrument(e.instrument);
     setFDifficulty(e.difficulty); setFStatus(e.status);
     setFBpm(e.bpm); setFKey(e.key); setFDescription(e.description);
-    setFVideoUrl(e.videoUrl); setFProgress(e.progress);
+    setFVideoUrl(e.video_url); setFProgress(e.progress);
     setShowForm(true);
   };
 
@@ -150,15 +179,16 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
     if (!fTitle.trim()) { toast.error('El título es requerido'); return; }
     const ex: Exercise = {
       id: editingId ?? generateId(),
+      folder_id: mFolderId,
       title: fTitle.trim(), category: fCategory.trim(),
       instrument: fInstrument, difficulty: fDifficulty,
       status: fStatus, bpm: fBpm, key: fKey,
-      description: fDescription, videoUrl: fVideoUrl,
+      description: fDescription, video_url: fVideoUrl,
       progress: fProgress,
-      createdAt: editingId ? (exercises.find(e => e.id === editingId)?.createdAt ?? today) : today,
-      lastPracticed: today,
-      relatedScaleId,
-      relatedHarmonyId
+      created_at: editingId ? (exercises.find((e: any) => e.id === editingId)?.created_at ?? today) : today,
+      last_practiced: today,
+      related_scale_id: relatedScaleId,
+      related_harmony_id: relatedHarmonyId,
     };
     if (editingId) {
       setExercises((prev: Exercise[]) => prev.map(e => e.id === editingId ? ex : e));
@@ -173,17 +203,52 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   const deleteExercise = (id: string) => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este ejercicio?')) return;
     setExercises((prev: Exercise[]) => prev.filter(e => e.id !== id));
-    setAllImages((prev: ExerciseImage[]) => prev.filter(img => img.exerciseId !== id));
+    setAllImages((prev: any[]) => prev.filter((img: any) => img.exercise_id !== id));
     toast.success('Ejercicio eliminado');
   };
 
   const markPracticed = (id: string) => {
     setExercises((prev: Exercise[]) => prev.map(e =>
-      e.id === id ? { ...e, lastPracticed: today } : e
+      e.id === id ? { ...e, last_practiced: today } : e
     ));
     toast.success('Marcado como practicado hoy ✓');
   };
 
+  // Folder actions
+  const resetFolderForm = () => {
+    setShowFolderForm(false);
+    setEditingFolderId(null);
+    setFFolderName('');
+    setFFolderColor(FOLDER_COLORS[0]);
+  };
+
+  const openEditFolder = (f: any) => {
+    setEditingFolderId(f.id);
+    setFFolderName(f.name);
+    setFFolderColor(f.color || FOLDER_COLORS[0]);
+    setShowFolderForm(true);
+  };
+
+  const saveFolder = () => {
+    if (!fFolderName.trim()) { toast.error('El nombre es requerido'); return; }
+    if (editingFolderId) {
+      setFolders((prev: any[]) => prev.map((f: any) => f.id === editingFolderId ? { ...f, name: fFolderName, color: fFolderColor } : f));
+      toast.success('Carpeta actualizada');
+    } else {
+      setFolders((prev: any[]) => [...prev, { id: generateId(), name: fFolderName.trim(), color: fFolderColor }]);
+      toast.success('Carpeta creada');
+    }
+    resetFolderForm();
+  };
+
+  const deleteFolder = (id: string) => {
+    setFolders((prev: any[]) => prev.filter((f: any) => f.id !== id));
+    setExercises((prev: any[]) => prev.map((e: any) => e.folder_id === id ? { ...e, folder_id: null } : e));
+    resetFolderForm();
+    toast.success('Carpeta eliminada');
+  };
+
+  // Image handling
   const handleFiles = useCallback(async (files: File[]) => {
     if (!editingId) { toast.error('Guarda el ejercicio primero'); return; }
     const imageFiles = files.filter(f => f.type.startsWith('image/'));
@@ -196,19 +261,89 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
       });
       const newImages: ExerciseImage[] = await Promise.all(
         imageFiles.map(async file => ({
-          id: generateId(), exerciseId: editingId,
-          dataUrl: await reader(file), fileName: file.name,
+          id: generateId(), exercise_id: editingId,
+          storage_path: await reader(file), file_name: file.name,
         }))
       );
-      setAllImages((prev: ExerciseImage[]) => [...prev, ...newImages]);
+      setAllImages((prev: any[]) => [...prev, ...newImages]);
       toast.success(`${newImages.length} imagen(es) guardada(s)`);
     } catch { toast.error('Error al procesar las imágenes'); }
     finally { setUploadingImages(false); }
   }, [editingId, setAllImages]);
 
+  const renderCard = (ex: any) => {
+    const imgs = imagesByExercise[ex.id] ?? [];
+    const practicedToday = ex.last_practiced === today;
+    return (
+      <div key={ex.id} className={`stat-card relative group transition-all hover:border-primary/40 ${practicedToday ? 'border-primary/30' : ''}`}>
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div>
+            <h4 className="font-semibold text-sm leading-tight text-foreground truncate max-w-[150px]">{ex.title}</h4>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{ex.category}</p>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            <AppTooltip content="Modo Enfoque (Pantalla completa)">
+              <button onClick={() => openFocusMode(ex, imgs as any)} className="p-1.5 rounded-md hover:bg-primary/20 hover:text-primary transition-all">
+                <Maximize2 className="h-3.5 w-3.5" />
+              </button>
+            </AppTooltip>
+            <AppTooltip content="Editar ejercicio">
+              <button onClick={() => openEdit(ex)} className="p-1.5 rounded-md hover:bg-primary/20 hover:text-primary transition-all">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </AppTooltip>
+            <AppTooltip content="Eliminar ejercicio">
+              <button onClick={() => deleteExercise(ex.id)} className="p-1.5 rounded-md hover:bg-destructive/20 hover:text-destructive transition-all">
+                <Trash className="h-3.5 w-3.5" />
+              </button>
+            </AppTooltip>
+          </div>
+        </div>
+
+        <div className="relative aspect-video rounded-md overflow-hidden bg-secondary/50 mb-3 border border-white/5 cursor-pointer"
+          onClick={() => imgs.length > 0 ? (setViewerImages(imgs), setViewerIndex(0)) : ex.video_url ? window.open(ex.video_url, '_blank') : openEdit(ex)}>
+          {imgs.length > 0 ? (
+            <img src={imgs[0].storage_path} className="w-full h-full object-cover" alt="partitura" />
+          ) : ex.video_url ? (
+            <YouTubeThumb url={ex.video_url} />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full opacity-20">
+              <Music2 className="h-8 w-8" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2 mt-auto pt-2 border-t border-white/5">
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => markPracticed(ex.id)}
+              className={`text-[10px] px-2 py-1 rounded-full transition-all flex items-center gap-1 ${
+                practicedToday ? 'bg-primary/20 text-primary' : 'bg-secondary hover:bg-primary/20 hover:text-primary'
+              }`}
+            >
+              {practicedToday ? '✓ Practicado' : '+ Hoy'}
+            </button>
+            {ex.video_url && (
+              <button 
+                onClick={() => window.open(ex.video_url, '_blank')}
+                className="text-[10px] px-2 py-1 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all flex items-center gap-1"
+              >
+                <Play className="h-2.5 w-2.5 fill-current" /> Video
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono">
+            {ex.bpm > 0 && <span>♩{ex.bpm}</span>}
+            {ex.key && <span>{ex.key}</span>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      {/* Search & Add */}
+      {/* Search & Header Actions */}
       <div className="flex items-center gap-2">
         <Input 
           placeholder="Buscar mis ejercicios..." 
@@ -216,6 +351,11 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} 
           className="flex-1 glass-panel border-white/10"
         />
+        <AppTooltip content="Agregar una nueva carpeta.">
+          <Button size="sm" variant="outline" onClick={() => { resetFolderForm(); setShowFolderForm(true); }}>
+            <FolderPlus className="h-4 w-4" />
+          </Button>
+        </AppTooltip>
         <AppTooltip content="Agregar un nuevo ejercicio o técnica.">
           <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }} className="premium-btn-glow">
             <Plus className="h-4 w-4 mr-1" /> Nuevo
@@ -223,128 +363,99 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
         </AppTooltip>
       </div>
 
-      {/* List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {filtered.map(ex => {
-          const imgs = imagesByExercise[ex.id] ?? [];
-          const practicedToday = ex.lastPracticed === today;
-          return (
-            <div key={ex.id} className={`stat-card relative group transition-all hover:border-primary/40 ${practicedToday ? 'border-primary/30' : ''}`}>
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div>
-                  <h4 className="font-semibold text-sm leading-tight text-foreground truncate max-w-[150px]">{ex.title}</h4>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{ex.category}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <AppTooltip content="Modo Enfoque (Pantalla completa)">
-                    <button onClick={() => openFocusMode(ex, imgs)} className="p-1.5 rounded-md hover:bg-primary/20 hover:text-primary transition-all group/btn">
-                      <Maximize2 className="h-3.5 w-3.5" />
-                    </button>
-                  </AppTooltip>
-                  <AppTooltip content="Editar ejercicio">
-                    <button onClick={() => openEdit(ex)} className="p-1.5 rounded-md hover:bg-primary/20 hover:text-primary transition-all group/btn">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </AppTooltip>
-                  <AppTooltip content="Eliminar ejercicio">
-                    <button onClick={() => deleteExercise(ex.id)} className="p-1.5 rounded-md hover:bg-destructive/20 hover:text-destructive transition-all group/btn">
-                      <Trash className="h-3.5 w-3.5" />
-                    </button>
-                  </AppTooltip>
-                </div>
-              </div>
+      {/* Folder filter tabs */}
+      {folders.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          <button onClick={() => setFilterFolder('todos')} className={`chip text-xs ${filterFolder === 'todos' ? 'chip-active' : ''}`}>Todos</button>
+          {folders.map((f: any) => (
+            <button key={f.id} onClick={() => setFilterFolder(f.id)}
+              className={`chip text-xs ${filterFolder === f.id ? 'chip-active' : ''}`}
+              style={filterFolder !== f.id ? { borderLeft: `3px solid ${f.color}` } : {}}>
+              {f.name}
+            </button>
+          ))}
+        </div>
+      )}
 
-              {/* Preview */}
-              <div className="relative aspect-video rounded-md overflow-hidden bg-secondary/50 mb-3 border border-white/5 cursor-pointer"
-                onClick={() => imgs.length > 0 ? (setViewerImages(imgs), setViewerIndex(0)) : ex.videoUrl ? window.open(ex.videoUrl, '_blank') : openEdit(ex)}>
-                {imgs.length > 0 ? (
-                  <img src={imgs[0].dataUrl} className="w-full h-full object-cover" alt="partitura" />
-                ) : ex.videoUrl ? (
-                  <YouTubeThumb url={ex.videoUrl} />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full opacity-20">
-                    <Music2 className="h-8 w-8" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                  {imgs.length > 0 && <ZoomIn className="h-6 w-6 text-white" />}
-                  {ex.videoUrl && <Play className="h-8 w-8 text-primary fill-primary/20" />}
-                </div>
+      {/* Grouped by folder */}
+      <div className="space-y-4">
+        {groupedExercises.groups.map(({ folder, items }: any) => (
+          <div key={folder.id}>
+            <button
+              onClick={() => setCollapsedFolders(prev => { const n = new Set(prev); n.has(folder.id) ? n.delete(folder.id) : n.add(folder.id); return n; })}
+              className="flex items-center gap-2 group w-full text-left mb-2"
+            >
+              {collapsedFolders.has(folder.id) ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
+              <span className="section-title text-base">{folder.name}</span>
+              <span className="text-xs text-muted-foreground">({items.length})</span>
+              <button onClick={e => { e.stopPropagation(); openEditFolder(folder); }} className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">editar</button>
+            </button>
+            {!collapsedFolders.has(folder.id) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ml-5">
+                {items.map((ex: any) => renderCard(ex))}
               </div>
+            )}
+          </div>
+        ))}
 
-              {/* Footer */}
-              <div className="flex items-center justify-between gap-2 mt-auto pt-2 border-t border-white/5">
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => markPracticed(ex.id)}
-                    className={`text-[10px] px-2 py-1 rounded-full transition-all flex items-center gap-1 ${
-                      practicedToday ? 'bg-primary/20 text-primary' : 'bg-secondary hover:bg-primary/20 hover:text-primary'
-                    }`}
-                  >
-                    {practicedToday ? '✓ Practicado' : '+ Hoy'}
-                  </button>
-                  {ex.videoUrl && (
-                    <button 
-                      onClick={() => window.open(ex.videoUrl, '_blank')}
-                      className="text-[10px] px-2 py-1 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all flex items-center gap-1"
-                      title="Ver Video"
-                    >
-                      <Play className="h-2.5 w-2.5 fill-current" /> Video
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono">
-                   {ex.bpm > 0 && <span>♩{ex.bpm}</span>}
-                   {ex.key && <span>{ex.key}</span>}
-                </div>
-              </div>
+        {/* Unfoldered */}
+        {groupedExercises.unfoldered.length > 0 && (
+          <div>
+            {folders.length > 0 && <h3 className="section-title text-sm mb-2 opacity-70">Sin Carpeta ({groupedExercises.unfoldered.length})</h3>}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {groupedExercises.unfoldered.map((ex: any) => renderCard(ex))}
             </div>
-          );
-        })}
-
-        {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center glass-panel border-dashed opacity-50">
-            <BookOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm">No tienes ejercicios aquí todavía.</p>
-            <p className="text-xs">Sube tus capturas de partituras o links de videos para organizarlos.</p>
           </div>
         )}
       </div>
 
-      {/* Form Dialog */}
-      <Dialog open={showForm} onOpenChange={(open: boolean) => { if (!open) resetForm(); }}>
+      {filtered.length === 0 && (
+        <div className="col-span-full py-12 text-center glass-panel border-dashed opacity-50">
+          <BookOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm">No tienes ejercicios aquí todavía.</p>
+          <p className="text-xs">Sube tus capturas de partituras o links de videos para organizarlos.</p>
+        </div>
+      )}
+
+      {/* Exercise Form Dialog */}
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
         <DialogContent className="bg-card border-border max-w-lg max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display">
-              {editingId ? 'Editar' : 'Nuevo'} Ejercicio
-            </DialogTitle>
+            <DialogTitle className="font-display">{editingId ? 'Editar' : 'Nuevo'} Ejercicio</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Título *</label>
-              <Input value={fTitle} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFTitle(e.target.value)} placeholder='Ej: Intro de Montuno en C' autoFocus />
+              <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder='Ej: Intro de Montuno en C' autoFocus />
+            </div>
+            
+            <div>
+              <label className="text-xs text-muted-foreground">Carpeta</label>
+              <select value={mFolderId || ''} onChange={e => setMFolderId(e.target.value || null)}
+                className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
+                <option value="">(Sin carpeta)</option>
+                {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-               <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Categoría</label>
-                  <Input value={fCategory} onChange={e => setFCategory(e.target.value)} placeholder="Ej: Montuno, Solo..." />
-               </div>
-               <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Tonalidad</label>
-                  <Input value={fKey} onChange={e => setFKey(e.target.value)} placeholder="Ej: C, Am" />
-               </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Categoría</label>
+                <Input value={fCategory} onChange={e => setFCategory(e.target.value)} placeholder="Ej: Montuno, Solo..." />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Tonalidad</label>
+                <Input value={fKey} onChange={e => setFKey(e.target.value)} placeholder="Ej: C, Am" />
+              </div>
             </div>
 
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Video Link</label>
               <div className="relative">
-                <Input value={fVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFVideoUrl(e.target.value)} placeholder="https://youtube.com..." className="pr-10" />
+                <Input value={fVideoUrl} onChange={(e) => setFVideoUrl(e.target.value)} placeholder="https://youtube.com..." className="pr-10" />
                 {fVideoUrl && (
-                  <button 
-                    onClick={() => setFVideoUrl('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive transition-colors"
-                  >
+                  <button onClick={() => setFVideoUrl('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive transition-colors">
                     <X className="h-4 w-4" />
                   </button>
                 )}
@@ -365,11 +476,11 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                   onChange={e => { if (e.target.files) handleFiles(Array.from(e.target.files)); }} />
                 
                 <div className="grid grid-cols-4 gap-2 mt-3">
-                  {allImages.filter(i => i.exerciseId === editingId).map((img: ExerciseImage) => (
+                  {allImages.filter((i: any) => i.exercise_id === editingId).map((img: ExerciseImage) => (
                     <div key={img.id} className="relative aspect-square rounded overflow-hidden border border-white/10 group">
-                      <img src={img.dataUrl} className="w-full h-full object-cover" alt="prev" />
+                      <img src={img.storage_path} className="w-full h-full object-cover" alt="prev" />
                       <AppTooltip content="Eliminar esta imagen">
-                        <button onClick={() => setAllImages((prev: ExerciseImage[]) => prev.filter(i => i.id !== img.id))} 
+                        <button onClick={() => setAllImages((prev: any[]) => prev.filter((i: any) => i.id !== img.id))} 
                           className="absolute top-1 right-1 bg-destructive text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:scale-110">
                           <X className="h-2 w-2" />
                         </button>
@@ -379,14 +490,37 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                 </div>
               </div>
             ) : (
-               <div className="p-3 bg-secondary/50 rounded-lg text-[11px] text-muted-foreground italic">
-                  💡 Primero guarda el ejercicio para poder subirle imágenes.
-               </div>
+              <div className="p-3 bg-secondary/50 rounded-lg text-[11px] text-muted-foreground italic">
+                💡 Primero guarda el ejercicio para poder subirle imágenes.
+              </div>
             )}
 
             <div className="flex justify-end gap-2 pt-4 border-t border-border">
               <Button variant="outline" size="sm" onClick={resetForm}>Cancelar</Button>
               <Button size="sm" onClick={saveExercise}>Guardar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Folder Form Dialog */}
+      <Dialog open={showFolderForm} onOpenChange={open => { if (!open) resetFolderForm(); }}>
+        <DialogContent className="bg-card border-border sm:max-w-md">
+          <DialogHeader><DialogTitle>{editingFolderId ? 'Editar' : 'Nueva'} Carpeta</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground">Nombre</label>
+              <Input value={fFolderName} onChange={e => setFFolderName(e.target.value)} placeholder="Nombre de la carpeta..." autoFocus />
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {FOLDER_COLORS.map(c => <button key={c} onClick={() => setFFolderColor(c)} className={`w-8 h-8 rounded-full ${fFolderColor === c ? 'ring-2 ring-white ring-offset-2' : ''}`} style={{ backgroundColor: c }} />)}
+            </div>
+            <div className="flex justify-between pt-4 border-t">
+              {editingFolderId ? <Button variant="destructive" size="sm" onClick={() => deleteFolder(editingFolderId)}>Eliminar</Button> : <div />}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={resetFolderForm}>Cancelar</Button>
+                <Button size="sm" onClick={saveFolder}>Guardar</Button>
+              </div>
             </div>
           </div>
         </DialogContent>
@@ -401,20 +535,20 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             </button>
           </div>
           {viewerImages[viewerIndex] && (
-            <img src={viewerImages[viewerIndex].dataUrl} className="max-w-full max-h-[85vh] object-contain shadow-2xl" alt="partitura" />
+            <img src={viewerImages[viewerIndex].storage_path} className="max-w-full max-h-[85vh] object-contain shadow-2xl" alt="partitura" />
           )}
           {viewerImages.length > 1 && (
-             <div className="flex gap-4 mt-6">
-                <Button size="sm" variant="outline" className="text-white border-white/20 hover:bg-white/10" 
-                   onClick={() => setViewerIndex(i => (i - 1 + viewerImages.length) % viewerImages.length)}>
-                   Anterior
-                </Button>
-                <span className="text-white/60 text-sm flex items-center">{viewerIndex + 1} / {viewerImages.length}</span>
-                <Button size="sm" variant="outline" className="text-white border-white/20 hover:bg-white/10"
-                   onClick={() => setViewerIndex(i => (i + 1) % viewerImages.length)}>
-                   Siguiente
-                </Button>
-             </div>
+            <div className="flex gap-4 mt-6">
+              <Button size="sm" variant="outline" className="text-white border-white/20 hover:bg-white/10" 
+                onClick={() => setViewerIndex(i => (i - 1 + viewerImages.length) % viewerImages.length)}>
+                Anterior
+              </Button>
+              <span className="text-white/60 text-sm flex items-center">{viewerIndex + 1} / {viewerImages.length}</span>
+              <Button size="sm" variant="outline" className="text-white border-white/20 hover:bg-white/10"
+                onClick={() => setViewerIndex(i => (i + 1) % viewerImages.length)}>
+                Siguiente
+              </Button>
+            </div>
           )}
         </DialogContent>
       </Dialog>

@@ -60,17 +60,23 @@ export const MASTERY_LABELS: Record<MasteryLevel, string> = {
   dominado: '🟢 Dominado',
 };
 
+export interface ScaleFolder { id: string; name: string; color: string; }
+export interface HarmonyFolder { id: string; name: string; color: string; }
+export interface RhythmFolder { id: string; name: string; color: string; }
+export interface ExerciseFolder { id: string; name: string; color: string; }
+
 export interface Scale {
   id: string;
+  folder_id?: string | null;
   name: string;
   type: ScaleType;
   subtype: string;
   instrument: Instrument | 'ambos';
   mastery: MasteryLevel;
-  bpmCurrent: number;
-  bpmTarget: number;
+  bpm_current: number;
+  bpm_target: number;
   notes: string;
-  referenceUrl: string;
+  reference_url: string;
   progress: number;
 }
 
@@ -78,6 +84,7 @@ export type HarmonyType = 'progresion' | 'acorde' | 'voicing' | 'cadencia' | 'ot
 
 export interface Harmony {
   id: string;
+  folder_id?: string | null;
   name: string;
   type: HarmonyType;
   description: string;
@@ -88,27 +95,28 @@ export type MelodyStatus = 'aprendiendo' | 'practicando' | 'dominada';
 
 export interface Melody {
   id: string;
+  folder_id?: string | null;
   name: string;
   instrument: Instrument | 'ambos';
   status: MelodyStatus;
   bpm: number;
   key: string;
-  timeSignature: string;
+  time_signature: string;
   description: string;
   progress: number;
-  files: string[];
 }
 
 export type RhythmType = 'balada' | 'vals' | 'pop' | 'gospel' | 'latino' | 'otro';
 
 export interface Rhythm {
   id: string;
+  folder_id?: string | null;
   name: string;
   type: RhythmType;
   description: string;
   bpm: number;
-  timeSignature: string;
-  videoUrl?: string;
+  time_signature: string;
+  video_url?: string;
 }
 
 export type SongGenre = 'adoracion' | 'alabanza' | 'himno' | 'contemporaneo' | 'instrumental';
@@ -157,13 +165,14 @@ export type ExerciseStatus = 'pendiente' | 'en_progreso' | 'dominado';
 
 export interface ExerciseImage {
   id: string;
-  exerciseId: string;
-  dataUrl: string;
-  fileName: string;
+  exercise_id: string;
+  storage_path: string;
+  file_name: string;
 }
 
 export interface Exercise {
   id: string;
+  folder_id?: string | null;
   title: string;
   category: string;
   instrument: Instrument | 'ambos';
@@ -172,10 +181,10 @@ export interface Exercise {
   bpm: number;
   key: string;
   description: string;
-  videoUrl: string;
+  video_url: string;
   progress: number;
-  createdAt: string;
-  lastPracticed: string;
-  relatedScaleId?: string;    // Opcional: vinculado a una escala específica
-  relatedHarmonyId?: string;  // Opcional: vinculado a una armonía específica
+  created_at: string;
+  last_practiced: string;
+  related_scale_id?: string;    // Opcional: vinculado a una escala específica
+  related_harmony_id?: string;  // Opcional: vinculado a una armonía específica
 }

@@ -4,34 +4,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PracticeSession, Scale, Harmony, Melody, Rhythm, Song, WeeklySetlist, ScalePracticeLog, HarmonyPracticeLog, RhythmPracticeLog } from '@/types/music';
 
-const TABLES_WITHOUT_USER_ID = [
-  'melody_folders', 'melody_images', 'melody_practice_logs',
-  'rhythms', 'rhythm_folders', 'rhythm_images', 'rhythm_practice_logs',
-  'exercises', 'exercise_images'
-];
-
 export function useSupabaseData<T>(tableName: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const queryKey = [tableName, user?.id];
-  const requiresUserId = !TABLES_WITHOUT_USER_ID.includes(tableName);
 
   const { data: serverData = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      if (!user && requiresUserId) return [];
-      let q = supabase.from(tableName).select('*');
-      if (requiresUserId && user) {
-        q = q.eq('user_id', user.id);
-      }
-      const { data, error } = await q;
+      if (!user) return [];
+      const { data, error } = await supabase.from(tableName).select('*').eq('user_id', user.id);
       if (error) {
         console.error(`Error fetching ${tableName}:`, error);
         throw error;
       }
       return data as T[];
     },
-    enabled: !requiresUserId || !!user,
+    enabled: !!user,
   });
 
   const [localData, setLocalData] = useState<T[]>(serverData);
@@ -51,26 +40,17 @@ export function useSupabaseData<T>(tableName: string) {
           const hasMissingIds = newData.some((item: any) => !item.id) || prev.some((item: any) => !item.id);
           
           if (hasMissingIds) {
-            // Tablas sin ID (como los logs) se sobrescriben para garantizar sincronía exacta y limpiar viejos
-            let delQ = supabase.from(tableName).delete();
-            if (requiresUserId) delQ = delQ.eq('user_id', user.id);
-            else delQ = delQ.neq('id', 'dummy_to_delete_all'); // For global tables, be careful! Actually we shouldn't wipe globally. Let's just delete the ones we know about.
-            
-            // To be safe on global tables without user_id, we just delete the ones we are replacing if they had no IDs
-            if (requiresUserId) await delQ;
-            
+            await supabase.from(tableName).delete().eq('user_id', user.id);
             if (newData.length > 0) {
               await supabase.from(tableName).insert(
                 newData.map((item: any) => {
-                  const copy = { ...item };
-                  if (requiresUserId) copy.user_id = user.id;
-                  delete copy.id; // Eliminar el uuid generado localmente si existe parcialmente
+                  const copy = { ...item, user_id: user.id };
+                  delete copy.id;
                   return copy;
                 })
               );
             }
           } else {
-             // Sistema inteligente para tablas con ID: calcula lo borrado, lo insertado y lo actualizado
              const newIds = new Set(newData.map((item: any) => item.id));
              const deletedIds = prev.filter((item: any) => !newIds.has(item.id)).map((item: any) => item.id);
              const oldDataMap = new Map(prev.map((item: any) => [item.id, item]));
@@ -78,16 +58,10 @@ export function useSupabaseData<T>(tableName: string) {
              const upserts = newData.filter((newItem: any) => {
                const oldItem = oldDataMap.get(newItem.id);
                return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
-             }).map((item: any) => {
-               const copy = { ...item };
-               if (requiresUserId) copy.user_id = user.id;
-               return copy;
-             });
+             }).map((item: any) => ({ ...item, user_id: user.id }));
              
              if (deletedIds.length > 0) {
-               let delQ = supabase.from(tableName).delete().in('id', deletedIds);
-               if (requiresUserId) delQ = delQ.eq('user_id', user.id);
-               await delQ;
+               await supabase.from(tableName).delete().in('id', deletedIds).eq('user_id', user.id);
              }
              if (upserts.length > 0) {
                await supabase.from(tableName).upsert(upserts);
@@ -117,9 +91,6 @@ export function useRhythmLogs() { return useSupabaseData<RhythmPracticeLog>('rhy
 export function useSongs() { return useSupabaseData<Song>('songs'); }
 export function useSetlists() { return useSupabaseData<WeeklySetlist>('weekly_setlists'); }
 
-// Ejercicios y Técnicas
-export function useExercises() { return useSupabaseData<any>('exercises'); }
-export function useExerciseImages() { return useSupabaseData<any>('exercise_images'); }
 
 // Melodías (Carpetas, Imágenes y Logs adicionales)
 export function useMelodyFolders() { return useSupabaseData<any>('melody_folders'); }
@@ -130,3 +101,17 @@ export function useMelodyPracticeLogs() { return useSupabaseData<any>('melody_pr
 export function useRhythmFolders() { return useSupabaseData<any>('rhythm_folders'); }
 export function useRhythmImages() { return useSupabaseData<any>('rhythm_images'); }
 export function useRhythmPracticeLogs() { return useSupabaseData<any>('rhythm_practice_logs'); }
+
+// Ejercicios
+export function useExercises() { return useSupabaseData<any>('exercises'); }
+export function useExerciseFolders() { return useSupabaseData<any>('exercise_folders'); }
+export function useExerciseImages() { return useSupabaseData<any>('exercise_images'); }
+export function useExercisePracticeLogs() { return useSupabaseData<any>('exercise_practice_logs'); }
+
+// Escalas
+export function useScaleFolders() { return useSupabaseData<any>('scale_folders'); }
+export function useScalePracticeLogs() { return useSupabaseData<any>('scale_practice_logs'); }
+
+// Armonías
+export function useHarmonyFolders() { return useSupabaseData<any>('harmony_folders'); }
+export function useHarmonyPracticeLogs() { return useSupabaseData<any>('harmony_practice_logs'); }
