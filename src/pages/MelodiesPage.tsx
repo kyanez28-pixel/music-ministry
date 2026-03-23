@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useSessions, useMelodies } from '@/hooks/use-music-data';
+import { useSessions, useMelodies, useMelodyFolders, useMelodyImages, useMelodyPracticeLogs } from '@/hooks/use-music-data';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { getTodayEC, generateId } from '@/lib/music-utils';
 import { Button } from '@/components/ui/button';
@@ -32,27 +32,27 @@ interface MelodyFolder {
 
 interface MelodyImage {
   id: string;
-  melodyId: string;
-  dataUrl: string;   // base64
-  fileName: string;
+  melody_id: string;
+  storage_path: string;   // base64 goes here
+  file_name: string;
 }
 
 interface Melody {
   id: string;
-  folderId: string | null;
+  folder_id: string | null;
   name: string;
   instrument: InstrumentType;
   status: MelodyStatus;
   bpm: number;
   key: string;
-  timeSignature: string;
+  time_signature: string;
   description: string;
   progress: number;
-  videoUrl?: string;
+  videoUrl?: string; // we'll filter this out before saving, or append to description
 }
 
 interface MelodyPracticeLog {
-  melodyId: string;
+  melody_id: string;
   date: string;
   instrument: Instrument;
 }
@@ -78,10 +78,12 @@ const KEYS_LIST = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', '
 export default function MelodiesPage() {
   const { openFocusMode } = useFocusMode();
   const [sessions, setSessions] = useSessions();
-  const [folders, setFolders] = useLocalStorage<MelodyFolder[]>('mm-melody-folders', []);
+  
+  // Use Supabase hooks instead of LocalStorage!
+  const [folders, setFolders] = useMelodyFolders();
   const [melodies, setMelodies] = useMelodies();
-  const [allImages, setAllImages] = useLocalStorage<MelodyImage[]>('mm-melody-images', []);
-  const [practiceLogs, setPracticeLogs] = useLocalStorage<MelodyPracticeLog[]>('mm-melody-logs', []);
+  const [allImages, setAllImages] = useMelodyImages();
+  const [practiceLogs, setPracticeLogs] = useMelodyPracticeLogs();
 
   const { instruments } = useInstruments();
   const today = getTodayEC();
@@ -125,16 +127,16 @@ export default function MelodiesPage() {
   );
 
   const editingImages = useMemo(() =>
-    editingId ? allImages.filter(i => i.melodyId === editingId) : [],
+    editingId ? allImages.filter(i => i.melody_id === editingId) : [],
     [allImages, editingId]
   );
 
   const filteredMelodies = useMemo(() => {
     let list = melodies;
-    if (filterFolder !== 'todos') list = list.filter((m: Melody) => m.folderId === filterFolder);
+    if (filterFolder !== 'todos') list = list.filter((m: Melody) => m.folder_id === filterFolder);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter((m: Melody) => m.name.toLowerCase().includes(q) || m.key.toLowerCase().includes(q));
+      list = list.filter((m: Melody) => m.name.toLowerCase().includes(q) || (m.key && m.key.toLowerCase().includes(q)));
     }
     return list;
   }, [melodies, filterFolder, searchQuery]);
@@ -142,9 +144,9 @@ export default function MelodiesPage() {
   const groupedMelodies = useMemo(() => {
     const groups = folders.map((f: MelodyFolder) => ({
       folder: f,
-      items: filteredMelodies.filter((m: Melody) => m.folderId === f.id),
+      items: filteredMelodies.filter((m: Melody) => m.folder_id === f.id),
     }));
-    const unfoldered = filteredMelodies.filter((m: Melody) => !m.folderId);
+    const unfoldered = filteredMelodies.filter((m: Melody) => !m.folder_id);
     return { groups, unfoldered };
   }, [folders, filteredMelodies]);
 
@@ -158,28 +160,42 @@ export default function MelodiesPage() {
     setMTimeSig('4/4'); setMDesc(''); setMProgress(0); setMVideoUrl('');
   };
 
+  const extractVideoUrl = (desc: string) => {
+    const match = desc.match(/\[Video\]:\s*(https?:\/\/[^\s]+)/);
+    return match ? match[1] : '';
+  };
+
   const openEdit = (m: Melody) => {
     setEditingId(m.id);
-    setMName(m.name); setMFolderId(m.folderId); setMInstrument(m.instrument);
-    setMStatus(m.status); setMBpm(m.bpm); setMKey(m.key);
-    setMTimeSig(m.timeSignature); setMDesc(m.description); setMProgress(m.progress);
-    setMVideoUrl(m.videoUrl ?? '');
+    setMName(m.name); setMFolderId(m.folder_id); setMInstrument(m.instrument as InstrumentType);
+    setMStatus(m.status as MelodyStatus); setMBpm(m.bpm || 0); setMKey(m.key || '');
+    setMTimeSig(m.time_signature || '4/4'); 
+    
+    // Extract video URL if it was saved in description
+    setMVideoUrl(extractVideoUrl(m.description || ''));
+    setMDesc((m.description || '').replace(/\n?\[Video\]:\s*https?:\/\/[^\s]+/, ''));
+    
+    setMProgress(m.progress || 0);
     setShowForm(true);
   };
 
   const saveMelody = () => {
     if (!mName.trim()) { toast.error('El nombre es requerido'); return; }
-    const melody: Melody = {
+    
+    // Append videoUrl to description since DB has no video_url column
+    const finalDesc = mVideoUrl ? `${mDesc}\n[Video]: ${mVideoUrl}` : mDesc;
+
+    const melody = {
       id: editingId ?? generateId(),
-      folderId: mFolderId, name: mName.trim(), instrument: mInstrument,
-      status: mStatus, bpm: mBpm, key: mKey, timeSignature: mTimeSig,
-      description: mDesc, progress: mProgress, videoUrl: mVideoUrl
+      folder_id: mFolderId, name: mName.trim(), instrument: mInstrument,
+      status: mStatus, bpm: mBpm, key: mKey, time_signature: mTimeSig,
+      description: finalDesc, progress: mProgress
     };
     if (editingId) {
-      setMelodies((prev: Melody[]) => prev.map((m: Melody) => m.id === editingId ? melody : m));
+      setMelodies((prev: any[]) => prev.map((m: any) => m.id === editingId ? melody : m));
       toast.success('Melodía actualizada');
     } else {
-      setMelodies((prev: Melody[]) => [...prev, melody]);
+      setMelodies((prev: any[]) => [...prev, melody]);
       toast.success('Melodía agregada');
     }
     resetForm();
@@ -187,9 +203,9 @@ export default function MelodiesPage() {
 
   const deleteMelody = () => {
     if (!editingId) return;
-    setMelodies((prev: Melody[]) => prev.filter((m: Melody) => m.id !== editingId));
-    setAllImages((prev: MelodyImage[]) => prev.filter((i: MelodyImage) => i.melodyId !== editingId));
-    setPracticeLogs((prev: MelodyPracticeLog[]) => prev.filter((l: MelodyPracticeLog) => l.melodyId !== editingId));
+    setMelodies((prev: any[]) => prev.filter((m: any) => m.id !== editingId));
+    setAllImages((prev: any[]) => prev.filter((i: any) => i.melody_id !== editingId));
+    setPracticeLogs((prev: any[]) => prev.filter((l: any) => l.melody_id !== editingId));
     toast.success('Melodía eliminada');
     resetForm();
   };
@@ -224,7 +240,7 @@ export default function MelodiesPage() {
 
   const deleteFolder = (id: string) => {
     setFolders((prev: MelodyFolder[]) => prev.filter((f: MelodyFolder) => f.id !== id));
-    setMelodies((prev: Melody[]) => prev.map((m: Melody) => m.folderId === id ? { ...m, folderId: null } : m));
+    setMelodies((prev: any[]) => prev.map((m: any) => m.folder_id === id ? { ...m, folder_id: null } : m));
     resetFolderForm();
     toast.success('Carpeta eliminada');
   };
@@ -259,13 +275,13 @@ export default function MelodiesPage() {
       const newImages: MelodyImage[] = await Promise.all(
         imageFiles.map(async (file: File) => ({
           id: generateId(),
-          melodyId: editingId,
-          dataUrl: await fileToBase64(file),
-          fileName: file.name,
+          melody_id: editingId,
+          storage_path: await fileToBase64(file),
+          file_name: file.name,
         }))
       );
       setAllImages((prev: MelodyImage[]) => [...prev, ...newImages]);
-      toast.success(`${newImages.length} imagen(es) guardada(s)`);
+      toast.success(`${newImages.length} imagen(es) subida(s)`);
     } catch {
       toast.error('Error al procesar las imágenes');
     } finally {
@@ -304,18 +320,18 @@ export default function MelodiesPage() {
   // ─── Practice ───────────────────────────────────────────────────────────────
 
   const isCheckedToday = (melodyId: string) =>
-    todayLogs.some(l => l.melodyId === melodyId);
+    todayLogs.some(l => l.melody_id === melodyId);
 
   const togglePractice = (melodyId: string) => {
     const exists = practiceLogs.find(
-      (l: MelodyPracticeLog) => l.melodyId === melodyId && l.date === today && l.instrument === practiceInstrument
+      (l: MelodyPracticeLog) => l.melody_id === melodyId && l.date === today && l.instrument === practiceInstrument
     );
     if (exists) {
       setPracticeLogs((prev: MelodyPracticeLog[]) => prev.filter((l: MelodyPracticeLog) =>
-        !(l.melodyId === melodyId && l.date === today && l.instrument === practiceInstrument)
+        !(l.melody_id === melodyId && l.date === today && l.instrument === practiceInstrument)
       ));
     } else {
-      setPracticeLogs((prev: MelodyPracticeLog[]) => [...prev, { melodyId, date: today, instrument: practiceInstrument }]);
+      setPracticeLogs((prev: MelodyPracticeLog[]) => [...prev, { melody_id: melodyId, date: today, instrument: practiceInstrument }]);
     }
   };
 
@@ -347,7 +363,7 @@ export default function MelodiesPage() {
   // ─── Image Viewer ────────────────────────────────────────────────────────────
 
   const openViewer = (melodyId: string, startIndex = 0) => {
-    const imgs = allImages.filter(i => i.melodyId === melodyId);
+    const imgs = allImages.filter(i => i.melody_id === melodyId);
     if (imgs.length === 0) return;
     setViewerImages(imgs);
     setViewerIndex(startIndex);
@@ -477,7 +493,7 @@ export default function MelodiesPage() {
                       {items.map((m: Melody) => (
                         <MelodyCard
                           key={m.id} melody={m}
-                          images={allImages.filter((i: MelodyImage) => i.melodyId === m.id)}
+                          images={allImages.filter((i: MelodyImage) => i.melody_id === m.id)}
                           isChecked={isCheckedToday(m.id)}
                           onToggle={() => togglePractice(m.id)}
                           onEdit={() => openEdit(m)}
@@ -501,7 +517,7 @@ export default function MelodiesPage() {
                 {groupedMelodies.unfoldered.map((m: Melody) => (
                   <MelodyCard
                     key={m.id} melody={m}
-                    images={allImages.filter((i: MelodyImage) => i.melodyId === m.id)}
+                    images={allImages.filter((i: MelodyImage) => i.melody_id === m.id)}
                     isChecked={isCheckedToday(m.id)}
                     onToggle={() => togglePractice(m.id)}
                     onEdit={() => openEdit(m)}
@@ -683,7 +699,7 @@ export default function MelodiesPage() {
                     <div className="grid grid-cols-3 gap-2 mt-3">
                       {editingImages.map((img, idx) => (
                         <div key={img.id} className="relative group rounded-lg overflow-hidden border border-border aspect-square">
-                          <img src={img.dataUrl} alt={img.fileName}
+                          <img src={img.storage_path} alt={img.file_name}
                             className="w-full h-full object-cover cursor-pointer transition-transform group-hover:scale-105"
                             onClick={() => { setViewerImages(editingImages); setViewerIndex(idx); }} />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
@@ -704,7 +720,7 @@ export default function MelodiesPage() {
                             </button>
                           </AppTooltip>
                           <p className="absolute bottom-0 left-0 right-0 text-[9px] text-white bg-black/50 px-1 py-0.5 truncate">
-                            {img.fileName}
+                            {img.file_name}
                           </p>
                         </div>
                       ))}
@@ -782,7 +798,7 @@ export default function MelodiesPage() {
             {/* Top bar */}
             <div className="flex items-center justify-between px-4 py-2 bg-black/50">
               <span className="text-white text-xs font-mono">
-                {viewerImages[viewerIndex]?.fileName}
+                {viewerImages[viewerIndex]?.file_name}
               </span>
               <span className="text-white/60 text-xs">
                 {viewerIndex + 1} / {viewerImages.length}
@@ -792,8 +808,8 @@ export default function MelodiesPage() {
             <div className="flex-1 flex items-center justify-center p-4 min-h-[60vh]">
               {viewerImages[viewerIndex] && (
                 <img
-                  src={viewerImages[viewerIndex].dataUrl}
-                  alt={viewerImages[viewerIndex].fileName}
+                  src={viewerImages[viewerIndex].storage_path}
+                  alt={viewerImages[viewerIndex].file_name}
                   className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl"
                 />
               )}
@@ -850,7 +866,7 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
       {/* Media thumbnail */}
       {firstImage ? (
         <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group" onClick={onViewImages}>
-          <img src={firstImage.dataUrl} alt={melody.name}
+          <img src={firstImage.storage_path} alt={melody.name}
             className="w-full h-36 border-b border-white/5 object-cover transition-transform duration-500 group-hover:scale-110" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
             <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-300 drop-shadow-xl" />
@@ -934,7 +950,7 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
               </span>
               <span>{melody.key || '—'}</span>
               <span className="opacity-40">·</span>
-              <span>{melody.timeSignature || '—'}</span>
+              <span>{melody.time_signature || '—'}</span>
             </span>
             {melody.bpm > 0 && <span className="font-mono bg-secondary/50 px-1.5 rounded text-[10px]">{melody.bpm} BPM</span>}
           </div>
