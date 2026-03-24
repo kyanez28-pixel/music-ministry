@@ -40,15 +40,18 @@ export function useSupabaseData<T>(tableName: string) {
           const hasMissingIds = newData.some((item: any) => !item.id) || prev.some((item: any) => !item.id);
           
           if (hasMissingIds) {
-            await supabase.from(tableName).delete().eq('user_id', user.id);
+            const { error: delError } = await supabase.from(tableName).delete().eq('user_id', user.id);
+            if (delError) throw delError;
+            
             if (newData.length > 0) {
-              await supabase.from(tableName).insert(
+              const { error: insError } = await supabase.from(tableName).insert(
                 newData.map((item: any) => {
                   const copy = { ...item, user_id: user.id };
                   delete copy.id;
                   return copy;
                 })
               );
+              if (insError) throw insError;
             }
           } else {
              const newIds = new Set(newData.map((item: any) => item.id));
@@ -61,15 +64,19 @@ export function useSupabaseData<T>(tableName: string) {
              }).map((item: any) => ({ ...item, user_id: user.id }));
              
              if (deletedIds.length > 0) {
-               await supabase.from(tableName).delete().in('id', deletedIds).eq('user_id', user.id);
+               const { error: delError } = await supabase.from(tableName).delete().in('id', deletedIds).eq('user_id', user.id);
+               if (delError) throw delError;
              }
              if (upserts.length > 0) {
-               await supabase.from(tableName).upsert(upserts);
+               const { error: upsError } = await supabase.from(tableName).upsert(upserts);
+               if (upsError) throw upsError;
              }
           }
           queryClient.invalidateQueries({ queryKey });
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Sync error on ${tableName}:`, error);
+          const { toast } = await import('sonner');
+          toast.error(`Error guardando ${tableName}: ${error.message || 'Error de red'}`);
         }
       })();
 

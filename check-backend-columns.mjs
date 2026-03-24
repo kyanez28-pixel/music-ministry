@@ -5,10 +5,16 @@ const key = 'sb_publishable_Yo1QAfWcnUElwR4ySsUJHw__JDxLcul';
 const supabase = createClient(url, key);
 
 async function check() {
-  const res1 = await supabase.from('melody_folders').insert({ id: 'dummy', name: 'test', user_id: '123e4567-e89b-12d3-a456-426614174000' });
-  console.log("melody_folders.insert:", res1.error?.message);
-
-  const res2 = await supabase.from('melodies').insert({ id: 'dummy', name: 'test', user_id: '123e4567-e89b-12d3-a456-426614174000' });
-  console.log("melodies.insert:", res2.error?.message);
+  const tables = ['melodies', 'melody_images', 'rhythms', 'rhythm_images', 'scales', 'harmonies'];
+  for (const t of tables) {
+    const { error } = await supabase.from(t).select('user_id').limit(1);
+    if (error && error.message.includes('column "user_id" does not exist')) {
+      console.log(`Table ${t}: user_id MISSING`);
+    } else if (error) {
+      console.log(`Table ${t}: Other error: ${error.message}`);
+    } else {
+      console.log(`Table ${t}: user_id OK`);
+    }
+  }
 }
 check();
