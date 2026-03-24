@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useSessions, useSongs } from '@/hooks/use-music-data';
 import { formatDuration, formatDurationLong, getStreak, getActiveDaysInLastN, getTodayEC } from '@/lib/music-utils';
 import { CATEGORY_LABELS, ALL_CATEGORIES, type PracticeCategory } from '@/types/music';
+import { LoadingCard } from '@/components/ui/LoadingCard';
 
 type Period = 'semana' | 'mes' | 'año' | 'todo';
 
@@ -13,8 +14,8 @@ const PERIOD_DAYS: Record<Period, number | null> = {
 };
 
 export default function StatsPage() {
-  const [sessions] = useSessions();
-  const [songs] = useSongs();
+  const [sessions = [], , isLoadingSessions] = useSessions();
+  const [songs = [], , isLoadingSongs] = useSongs();
   const [period, setPeriod] = useState<Period>('mes');
 
   const today = getTodayEC();
@@ -22,11 +23,11 @@ export default function StatsPage() {
   // Filtrar por período usando comparación de strings de fecha (más preciso)
   const filtered = useMemo(() => {
     const days = PERIOD_DAYS[period];
-    if (days === null) return sessions;
+    if (days === null) return sessions || [];
     const cutoff = new Date(today + 'T00:00:00');
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffStr = cutoff.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-    return sessions.filter(s => s.date >= cutoffStr);
+    return (sessions || []).filter(s => s.date >= cutoffStr);
   }, [sessions, period, today]);
 
   const totalMinutes = filtered.reduce((sum, s) => sum + s.durationMinutes, 0);
@@ -41,11 +42,11 @@ export default function StatsPage() {
     !best || s.durationMinutes > best.durationMinutes ? s : best, null);
 
   // Racha
-  const streak = getStreak(sessions);
+  const streak = getStreak(sessions || []);
 
   // Días activos en período
   const days = PERIOD_DAYS[period];
-  const activeDays = days ? getActiveDaysInLastN(sessions, days) : uniqueDays;
+  const activeDays = days ? getActiveDaysInLastN(sessions || [], days) : uniqueDays;
 
   // Category breakdown
   const categoryMinutes = useMemo(() => {
@@ -108,6 +109,15 @@ export default function StatsPage() {
   }, [filtered, period, today]);
 
   const maxActivity = Math.max(...activityData.map(d => d.minutes), 1);
+
+  if (isLoadingSessions || isLoadingSongs) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

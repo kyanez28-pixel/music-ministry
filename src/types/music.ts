@@ -129,7 +129,35 @@ export interface Song {
   genre: SongGenre;
   instrument: Instrument | 'ambos';
   notes: string;
-  referenceUrl: string;
+  reference_url: string;
+}
+
+export interface MelodyImage {
+  id: string;
+  melody_id: string;
+  storage_path: string;
+  file_name: string;
+}
+
+export interface RhythmImage {
+  id: string;
+  rhythm_id: string;
+  storage_path: string;
+  file_name: string;
+}
+
+export interface ScaleImage {
+  id: string;
+  scale_id: string;
+  storage_path: string;
+  file_name: string;
+}
+
+export interface HarmonyImage {
+  id: string;
+  harmony_id: string;
+  storage_path: string;
+  file_name: string;
 }
 
 export interface WeeklySetlist {

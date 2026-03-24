@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useSessions, useScaleLogs, useScales, useScaleFolders } from '@/hooks/use-music-data';
+import { useState, useMemo, useRef } from 'react';
+import { useSessions, useScaleLogs, useScales, useScaleFolders, useScaleImages } from '@/hooks/use-music-data';
 import { generateId, getTodayEC } from '@/lib/music-utils';
 import { PREDEFINED_SCALES, SCALE_TYPE_OPTIONS, NOTES } from '@/lib/predefined-scales';
 import type { Instrument, ScalePracticeLog } from '@/types/music';
@@ -8,10 +8,11 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil } from 'lucide-react';
+import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { ExerciseSection } from '@/components/ExerciseSection';
 import type { InstrumentDef } from '@/types/music';
 import { useInstruments } from '@/hooks/use-instruments';
@@ -19,10 +20,12 @@ import { useInstruments } from '@/hooks/use-instruments';
 const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
 export default function ScalesPage() {
-  const [sessions, setSessions] = useSessions();
-  const [scaleLogs, setScaleLogs] = useScaleLogs();
-  const [customScales, setCustomScales] = useScales();
-  const [folders, setFolders] = useScaleFolders();
+  const [sessions = [], setSessions] = useSessions();
+  const [scaleLogs = [], setScaleLogs, isLoadingLogs] = useScaleLogs();
+  const [customScales = [], setCustomScales, isLoadingScales] = useScales();
+  const [folders = [], setFolders, isLoadingFolders] = useScaleFolders();
+  const [allImages = [], setAllImages] = useScaleImages();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [showFolderForm, setShowFolderForm] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -41,14 +44,13 @@ export default function ScalesPage() {
   const { instruments } = useInstruments();
   const [search, setSearch] = useState('');
 
-  const [scaleVideos, setScaleVideos] = useLocalStorage<Record<string, string>>('mm-scale-videos', {});
   const [editingVideoScale, setEditingVideoScale] = useState<{id: string, name: string} | null>(null);
   const [tempVideoUrl, setTempVideoUrl] = useState('');
 
-  const openVideoEdit = (e: React.MouseEvent, id: string, name: string) => {
+  const openVideoEdit = (e: React.MouseEvent, scale: any) => {
     e.stopPropagation(); e.preventDefault();
-    setEditingVideoScale({ id, name });
-    setTempVideoUrl(scaleVideos[id] || '');
+    setEditingVideoScale({ id: scale.id, name: scale.label });
+    setTempVideoUrl(scale.video_url || '');
   };
 
   const resetFolderForm = () => {
@@ -100,29 +102,50 @@ export default function ScalesPage() {
       folder_id: sFolderId,
       type: 'custom',
     };
-    if (customScales.some((cs: any) => cs.id === editingScaleId)) {
-      setCustomScales((prev: any[]) => prev.map((s: any) => s.id === editingScaleId ? { ...s, ...scaleData } : s));
-    } else if (editingScaleId) {
-      setCustomScales((prev: any[]) => [...prev, scaleData]);
-    } else {
-      setCustomScales((prev: any[]) => [...prev, scaleData]);
-    }
+    setCustomScales((prev: any[]) => {
+      if (prev.some((s: any) => s.id === editingScaleId)) {
+        return prev.map((s: any) => s.id === editingScaleId ? { ...s, ...scaleData } : s);
+      }
+      return [...prev, scaleData];
+    });
     toast.success('Escala guardada');
     resetScaleForm();
   };
 
   const saveVideo = () => {
     if (editingVideoScale) {
-      setScaleVideos((prev: Record<string, string>) => ({ ...prev, [editingVideoScale.id]: tempVideoUrl }));
+      setCustomScales((prev: any[]) => prev.map((s: any) => 
+        s.id === editingVideoScale.id ? { ...s, video_url: tempVideoUrl } : s
+      ));
+      toast.success('Video actualizado');
     }
     setEditingVideoScale(null);
+  };
+
+  const handleFiles = async (files: File[]) => {
+    if (!editingScaleId) return;
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+        const newImg = {
+          id: generateId(),
+          scale_id: editingScaleId,
+          storage_path: base64,
+          file_name: file.name
+        };
+        setAllImages((prev: any[]) => [...prev, newImg]);
+      };
+      reader.readAsDataURL(file);
+    }
+    toast.success(`${files.length} imagen(es) añadida(s)`);
   };
 
   const today = getTodayEC();
 
   const todayChecked = useMemo(() => {
     const set = new Set<string>();
-    scaleLogs
+    (scaleLogs || [])
       .filter((l: any) => l.date === today && l.instrument === instrument)
       .forEach((l: any) => set.add(l.scaleId));
     return set;
@@ -132,9 +155,10 @@ export default function ScalesPage() {
     const mappedCustom = (customScales || []).map((s: any) => ({
       id: s.id,
       label: s.name,
-      scaleType: s.type || 'mayor',
+      scaleType: s.type || 'custom',
       note: 'C',
-      folder_id: s.folder_id
+      folder_id: s.folder_id,
+      video_url: s.video_url,
     }));
     return [...PREDEFINED_SCALES, ...mappedCustom];
   }, [customScales]);
@@ -147,7 +171,7 @@ export default function ScalesPage() {
   [filterType, filterNote, search, allScales, filterFolder]);
 
   const groupedScales = useMemo(() => {
-    const groups = folders.map((f: any) => ({
+    const groups = (folders || []).map((f: any) => ({
       folder: f,
       items: filtered.filter((s: any) => s.folder_id === f.id),
     }));
@@ -157,7 +181,7 @@ export default function ScalesPage() {
 
   const practiceCount = useMemo(() => {
     const counts: Record<string, number> = {};
-    scaleLogs.forEach((l: any) => { counts[l.scaleId] = (counts[l.scaleId] || 0) + 1; });
+    (scaleLogs || []).forEach((l: any) => { counts[l.scaleId] = (counts[l.scaleId] || 0) + 1; });
     return counts;
   }, [scaleLogs]);
 
@@ -189,13 +213,13 @@ export default function ScalesPage() {
   };
 
   const saveSession = () => {
-    const checkedToday = scaleLogs.filter((l: any) => l.date === today && l.instrument === instrument);
+    const checkedToday = (scaleLogs || []).filter((l: any) => l.date === today && l.instrument === instrument);
     if (checkedToday.length === 0) { toast.error('Marca al menos una escala antes de guardar'); return; }
     const scaleNames = checkedToday
       .map((l: any) => PREDEFINED_SCALES.find((s: any) => s.id === l.scaleId)?.label)
       .filter(Boolean).join(', ');
     const notesText = `Escalas (${checkedToday.length}): ${scaleNames}`;
-    const existingSession = sessions.find((s: any) =>
+    const existingSession = (sessions || []).find((s: any) =>
       s.date === today && s.instrument === instrument && s.categories.includes('escalas')
     );
     if (existingSession) {
@@ -234,10 +258,16 @@ export default function ScalesPage() {
             <span className={`text-sm font-medium truncate flex items-center gap-1.5 ${checked ? 'text-primary' : 'text-foreground'}`}>
               <span className="truncate">{scale.label}</span>
               <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditScale(scale); }} className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity"><Pencil className="h-2.5 w-2.5" /></button>
-              <button onClick={(e: React.MouseEvent) => openVideoEdit(e, scale.id, scale.label)}
-                className={`hover:text-primary transition-colors shrink-0 ${scaleVideos[scale.id] ? 'text-red-500' : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'}`}>
-                <Play className="h-3.5 w-3.5" />
-              </button>
+              
+              <div className="flex items-center gap-1 shrink-0">
+                {allImages.some((img: any) => img.scale_id === scale.id) && (
+                  <ImageIcon className="h-3 w-3 text-primary/60" />
+                )}
+                <button onClick={(e: React.MouseEvent) => openVideoEdit(e, scale)}
+                  className={`hover:text-primary transition-colors ${scale.video_url ? 'text-red-500' : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'}`}>
+                  <Play className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </span>
             {count > 0 && <span className="text-xs text-muted-foreground shrink-0 font-mono opacity-60">{count}×</span>}
           </div>
@@ -250,6 +280,15 @@ export default function ScalesPage() {
       </label>
     );
   };
+  if (isLoadingScales || isLoadingFolders) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+        <LoadingGrid />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -334,7 +373,7 @@ export default function ScalesPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              {groupedScales.groups.map(({ folder, items }) => (
+              {groupedScales.groups.map(({ folder, items }: { folder: any; items: any[] }) => (
                 <div key={folder.id}>
                   <button
                     onClick={() => setCollapsedFolders((prev: Set<string>) => { const n = new Set(prev); n.has(folder.id) ? n.delete(folder.id) : n.add(folder.id); return n; })}
@@ -344,7 +383,7 @@ export default function ScalesPage() {
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
                     <span className="section-title text-base">{folder.name}</span>
                     <span className="text-xs text-muted-foreground">({items.length})</span>
-                    <button onClick={e => { e.stopPropagation(); openEditFolder(folder); }} className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">editar</button>
+                    <button onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEditFolder(folder); }} className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">editar</button>
                   </button>
                   {!collapsedFolders.has(folder.id) && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ml-5">
@@ -381,7 +420,7 @@ export default function ScalesPage() {
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Nombre de la carpeta *</label>
-              <Input value={fFolderName} onChange={e => setFFolderName(e.target.value)} placeholder="Ej: Escalas Mayores" autoFocus />
+              <Input value={fFolderName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFFolderName(e.target.value)} placeholder="Ej: Escalas Mayores" autoFocus />
             </div>
             <div>
               <label className="text-xs text-muted-foreground text-center block mb-2">Color</label>
@@ -411,11 +450,38 @@ export default function ScalesPage() {
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Carpeta</label>
-              <select value={sFolderId || ''} onChange={e => setSFolderId(e.target.value || null)} className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
+              <select value={sFolderId || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSFolderId(e.target.value || null)} className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
                 <option value="">(Sin carpeta)</option>
                 {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
+
+            {editingScaleId && (
+              <div className="pt-2">
+                <label className="text-xs text-muted-foreground block mb-2">Imágenes (digitaciones / capturas)</label>
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-all mb-3"
+                >
+                  <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+                  <p className="text-[10px] text-muted-foreground">Sube digitaciones o capturas</p>
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" 
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) handleFiles(Array.from(e.target.files)); }} />
+                
+                <div className="grid grid-cols-4 gap-2">
+                  {allImages.filter((img: any) => img.scale_id === editingScaleId).map((img: any) => (
+                    <div key={img.id} className="relative aspect-square rounded overflow-hidden border border-white/10 group">
+                      <img src={img.storage_path} className="w-full h-full object-cover" alt="prev" />
+                      <button onClick={() => setAllImages((prev: any[]) => prev.filter((i: any) => i.id !== img.id))} 
+                        className="absolute top-1 right-1 bg-destructive text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X className="h-2 w-2" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-4 border-t border-border">
               <Button variant="outline" size="sm" onClick={resetScaleForm}>Cancelar</Button>
               <Button size="sm" onClick={saveScale}>Guardar</Button>

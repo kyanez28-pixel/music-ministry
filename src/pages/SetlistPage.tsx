@@ -11,6 +11,7 @@ import { Plus, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ExternalLink, Play
 import { AppTooltip } from '@/components/AppTooltip';
 import { useSessions } from '@/hooks/use-music-data';
 import { useInstruments } from '@/hooks/use-instruments';
+import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 
 const GENRES: { value: SongGenre; label: string; emoji: string }[] = [
   { value: 'adoracion', label: 'Adoración', emoji: '🙏' },
@@ -24,10 +25,12 @@ const INSTRUMENT_EMOJI = { piano: '🎹', guitarra: '🎸', ukelele: '🪗', amb
 const KEYS_COMMON = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'Cm', 'Dm', 'Em', 'Fm', 'Gm', 'Am', 'Bm'];
 
 export default function SetlistPage() {
-  const [songs, setSongs] = useSongs();
-  const [setlists, setSetlists] = useSetlists();
-  const [sessions, setSessions] = useSessions();
+  const [songs = [], setSongs, isLoadingSongs] = useSongs();
+  const [setlists = [], setSetlists, isLoadingSetlists] = useSetlists();
+  const [sessions = [], setSessions, isLoadingSessions] = useSessions();
   const { instruments } = useInstruments();
+
+  const isLoading = isLoadingSongs || isLoadingSetlists || isLoadingSessions;
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAddSong, setShowAddSong] = useState(false);
   const [filterGenre, setFilterGenre] = useState<SongGenre | 'todos'>('todos');
@@ -59,11 +62,11 @@ export default function SetlistPage() {
 
   const isCurrentWeek = weekOffset === 0;
 
-  const currentSetlist = setlists.find(s => s.weekStart === mondayStr)
+  const currentSetlist = (setlists || []).find(s => s.weekStart === mondayStr)
     ?? { weekStart: mondayStr, songIds: [], rehearsalNotes: '' };
 
-  const setlistSongs = currentSetlist.songIds
-    .map(id => songs.find(s => s.id === id))
+  const setlistSongs = (currentSetlist.songIds || [])
+    .map(id => (songs || []).find(s => s.id === id))
     .filter(Boolean) as Song[];
 
   // Bug fix: sincronizar rehearsalNotes cuando cambia la semana
@@ -189,19 +192,28 @@ export default function SetlistPage() {
     toast.success('Canción eliminada');
   };
 
-  const filteredSongs = songs
+  const filteredSongs = (songs || [])
     .filter(s => filterGenre === 'todos' || s.genre === filterGenre)
     .filter(s => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
-      return s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q) || s.key.toLowerCase().includes(q);
+      return (s.title || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q) || (s.key || '').toLowerCase().includes(q);
     })
-    .sort((a, b) => a.title.localeCompare(b.title, 'es'));
+    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'es'));
 
   const getYouTubeId = (url: string) => {
     const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/);
     return m ? m[1] : null;
   };
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+        <LoadingGrid />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -209,7 +221,7 @@ export default function SetlistPage() {
         <div>
           <h1 className="page-title">✝ Setlist Semanal</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center">
-            {songs.length} canciones en biblioteca
+            {(songs || []).length} canciones en biblioteca
             <AppTooltip content="Total de canciones registradas en tu repertorio personal.">
               <span className="ml-1 cursor-help opacity-50">ⓘ</span>
             </AppTooltip>

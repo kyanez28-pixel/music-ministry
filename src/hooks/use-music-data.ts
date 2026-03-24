@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PracticeSession, Scale, Harmony, Melody, Rhythm, Song, WeeklySetlist, ScalePracticeLog, HarmonyPracticeLog, RhythmPracticeLog } from '@/types/music';
+import type { PracticeSession, Scale, Harmony, Melody, Rhythm, Song, WeeklySetlist, ScalePracticeLog, HarmonyPracticeLog, RhythmPracticeLog, MelodyImage, RhythmImage, Exercise, ExerciseImage, ScaleImage, HarmonyImage, ScaleFolder, HarmonyFolder, RhythmFolder, ExerciseFolder } from '@/types/music';
 
 export function useSupabaseData<T>(tableName: string) {
   const { user } = useAuth();
@@ -23,7 +23,7 @@ export function useSupabaseData<T>(tableName: string) {
     enabled: !!user,
   });
 
-  const [localData, setLocalData] = useState<T[]>(serverData);
+  const [localData, setLocalData] = useState<T[]>(serverData || []);
 
   useEffect(() => {
     setLocalData(serverData);
@@ -77,7 +77,7 @@ export function useSupabaseData<T>(tableName: string) {
     });
   }, [user, tableName, queryClient, queryKey]);
 
-  return [isLoading ? [] : localData, setData] as const;
+  return [localData, setData, isLoading] as const;
 }
 
 export function useSessions() { return useSupabaseData<PracticeSession>('practice_sessions'); }
@@ -93,25 +93,27 @@ export function useSetlists() { return useSupabaseData<WeeklySetlist>('weekly_se
 
 
 // Melodías (Carpetas, Imágenes y Logs adicionales)
-export function useMelodyFolders() { return useSupabaseData<any>('melody_folders'); }
-export function useMelodyImages() { return useSupabaseData<any>('melody_images'); }
+export function useMelodyFolders() { return useSupabaseData<ScaleFolder>('melody_folders'); }
+export function useMelodyImages() { return useSupabaseData<MelodyImage>('melody_images'); }
 export function useMelodyPracticeLogs() { return useSupabaseData<any>('melody_practice_logs'); }
 
 // Ritmos (Carpetas, Imágenes y Logs adicionales)
-export function useRhythmFolders() { return useSupabaseData<any>('rhythm_folders'); }
-export function useRhythmImages() { return useSupabaseData<any>('rhythm_images'); }
-export function useRhythmPracticeLogs() { return useSupabaseData<any>('rhythm_practice_logs'); }
+export function useRhythmFolders() { return useSupabaseData<RhythmFolder>('rhythm_folders'); }
+export function useRhythmImages() { return useSupabaseData<RhythmImage>('rhythm_images'); }
+export function useRhythmPracticeLogs() { return useSupabaseData<RhythmPracticeLog>('rhythm_practice_logs'); }
 
 // Ejercicios
-export function useExercises() { return useSupabaseData<any>('exercises'); }
-export function useExerciseFolders() { return useSupabaseData<any>('exercise_folders'); }
-export function useExerciseImages() { return useSupabaseData<any>('exercise_images'); }
+export function useExercises() { return useSupabaseData<Exercise>('exercises'); }
+export function useExerciseFolders() { return useSupabaseData<ExerciseFolder>('exercise_folders'); }
+export function useExerciseImages() { return useSupabaseData<ExerciseImage>('exercise_images'); }
 export function useExercisePracticeLogs() { return useSupabaseData<any>('exercise_practice_logs'); }
 
 // Escalas
-export function useScaleFolders() { return useSupabaseData<any>('scale_folders'); }
-export function useScalePracticeLogs() { return useSupabaseData<any>('scale_practice_logs'); }
+export function useScaleFolders() { return useSupabaseData<ScaleFolder>('scale_folders'); }
+export function useScaleImages() { return useSupabaseData<ScaleImage>('scale_images'); }
+export function useScalePracticeLogs() { return useSupabaseData<ScalePracticeLog>('scale_practice_logs'); }
 
 // Armonías
-export function useHarmonyFolders() { return useSupabaseData<any>('harmony_folders'); }
-export function useHarmonyPracticeLogs() { return useSupabaseData<any>('harmony_practice_logs'); }
+export function useHarmonyFolders() { return useSupabaseData<HarmonyFolder>('harmony_folders'); }
+export function useHarmonyImages() { return useSupabaseData<HarmonyImage>('harmony_images'); }
+export function useHarmonyPracticeLogs() { return useSupabaseData<HarmonyPracticeLog>('harmony_practice_logs'); }

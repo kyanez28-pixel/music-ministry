@@ -11,11 +11,12 @@ import { CalendarDays, BarChart3, Music, ChevronLeft, ChevronRight } from 'lucid
 import { useInstruments } from '@/hooks/use-instruments';
 import { AppTooltip } from '@/components/AppTooltip';
 import type { InstrumentDef } from '@/types/music';
+import { LoadingCard } from '@/components/ui/LoadingCard';
 
 type ViewMode = 'list' | 'calendar' | 'stats';
 
 export default function HistoryPage() {
-  const [sessions, setSessions] = useSessions();
+  const [sessions = [], setSessions, isLoading] = useSessions();
   const [filterInstrument, setFilterInstrument] = useState<Instrument | 'todos'>('todos');
   const [filterCategory, setFilterCategory] = useState<PracticeCategory | 'todas'>('todas');
   const [editId, setEditId] = useState<string | null>(null);
@@ -27,10 +28,10 @@ export default function HistoryPage() {
   });
   const { instruments } = useInstruments();
 
-  const filtered = sessions
+  const filtered = (sessions || [])
     .filter((s: any) => filterInstrument === 'todos' || s.instrument === filterInstrument)
     .filter((s: any) => filterCategory === 'todas' || s.categories.includes(filterCategory))
-    .sort((a: any, b: any) => b.date.localeCompare(a.date));
+    .sort((a: any, b: any) => (b.date || '').localeCompare(a.date || ''));
 
   // Edit state
   const [editDate, setEditDate] = useState('');
@@ -42,7 +43,7 @@ export default function HistoryPage() {
   const [editRating, setEditRating] = useState(3);
 
   const openEdit = (id: string) => {
-    const s = sessions.find((x: any) => x.id === id);
+    const s = (sessions || []).find((x: any) => x.id === id);
     if (!s) return;
     setEditId(id);
     setEditDate(s.date);
@@ -77,7 +78,7 @@ export default function HistoryPage() {
   // ─── Calendar data ───
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, any[]>();
-    sessions.forEach((s: any) => {
+    (sessions || []).forEach((s: any) => {
       const existing = map.get(s.date) || [];
       existing.push(s);
       map.set(s.date, existing);
@@ -105,14 +106,14 @@ export default function HistoryPage() {
 
   // ─── Stats ───
   const stats = useMemo(() => {
-    const totalMinutes = sessions.reduce((sum: number, x: any) => sum + x.durationMinutes, 0);
-    const totalSessions = sessions.length;
-    const uniqueDays = new Set(sessions.map((s: any) => s.date)).size;
+    const totalMinutes = (sessions || []).reduce((sum: number, x: any) => sum + x.durationMinutes, 0);
+    const totalSessions = (sessions || []).length;
+    const uniqueDays = new Set((sessions || []).map((s: any) => s.date)).size;
     const avgMinutes = totalSessions > 0 ? Math.round(totalMinutes / totalSessions) : 0;
 
     const catCounts: Record<string, number> = {};
     const catMinutes: Record<string, number> = {};
-    sessions.forEach((s: any) => {
+    (sessions || []).forEach((s: any) => {
       const perCat = s.durationMinutes / (s.categories.length || 1);
       s.categories.forEach((c: string) => {
         catCounts[c] = (catCounts[c] || 0) + 1;
@@ -128,14 +129,14 @@ export default function HistoryPage() {
       d.setMonth(d.getMonth() - i);
       const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = d.toLocaleDateString('es-EC', { month: 'short' });
-      const minutes = sessions.filter((s: any) => s.date.startsWith(prefix)).reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
+      const minutes = (sessions || []).filter((s: any) => s.date && s.date.startsWith(prefix)).reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
       monthlyMinutes.push({ label, minutes });
     }
 
     // Rating distribution
     const ratingDist = [1, 2, 3, 4, 5].map(r => ({
       rating: r,
-      count: sessions.filter((s: any) => s.rating === r).length,
+      count: (sessions || []).filter((s: any) => s.rating === r).length,
     }));
     const maxRatingCount = Math.max(...ratingDist.map(r => r.count), 1);
 
@@ -143,6 +144,14 @@ export default function HistoryPage() {
   }, [sessions]);
 
   const maxMonthly = Math.max(...stats.monthlyMinutes.map(m => m.minutes), 1);
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

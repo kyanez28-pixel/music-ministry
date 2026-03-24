@@ -54,23 +54,23 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const location = useLocation();
   const [showSettings, setShowSettings] = useState(false);
-  const [songs] = useSongs();
-  const [setlists] = useSetlists();
-  const [scaleLogs] = useScaleLogs();
-  const [harmonyLogs] = useHarmonyLogs();
-  const [rhythmLogs] = useRhythmLogs();
+  const [songs = []] = useSongs();
+  const [setlists = []] = useSetlists();
+  const [scaleLogs = []] = useScaleLogs();
+  const [harmonyLogs = []] = useHarmonyLogs();
+  const [rhythmLogs = []] = useRhythmLogs();
   const { instruments } = useInstruments();
   const { isInstallable, installApp } = usePWAInstall();
 
   const today = getTodayEC();
   const monday = getMonday(new Date()).toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-  const currentSetlist = setlists.find((s: any) => s.weekStart === monday);
-  const setlistCount = currentSetlist?.songIds.length ?? 0;
+  const currentSetlist = (setlists || []).find((s: any) => s.weekStart === monday);
+  const setlistCount = currentSetlist?.songIds?.length ?? 0;
 
   // Badges para actividad de hoy
-  const todayScales = scaleLogs.filter((l: any) => l.date === today).length;
-  const todayHarmonies = harmonyLogs.filter((l: any) => l.date === today).length;
-  const todayRhythms = rhythmLogs.filter((l: any) => l.date === today).length;
+  const todayScales = (scaleLogs || []).filter((l: any) => l.date === today).length;
+  const todayHarmonies = (harmonyLogs || []).filter((l: any) => l.date === today).length;
+  const todayRhythms = (rhythmLogs || []).filter((l: any) => l.date === today).length;
 
   const getBadge = (title: string): number | null => {
     if (title === 'Setlist Semanal' && setlistCount > 0) return setlistCount;

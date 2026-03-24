@@ -8,31 +8,34 @@ import { Plus, Clock, Flame, Music2, BookOpen, Drum, Guitar, Timer } from 'lucid
 import { useInstruments } from '@/hooks/use-instruments';
 import type { InstrumentDef } from '@/types/music';
 import { AppTooltip } from '@/components/AppTooltip';
+import { LoadingCard } from '@/components/ui/LoadingCard';
 
 export default function DashboardPage() {
-  const [sessions] = useSessions();
-  const [scaleLogs] = useScaleLogs();
-  const [harmonyLogs] = useHarmonyLogs();
-  const [rhythmLogs] = useRhythmLogs();
-  const [songs] = useSongs();
-  const [setlists] = useSetlists();
+  const [sessions = [], , isLoadingSessions] = useSessions();
+  const [scaleLogs = [], , isLoadingScales] = useScaleLogs();
+  const [harmonyLogs = [], , isLoadingHarmonies] = useHarmonyLogs();
+  const [rhythmLogs = [], , isLoadingRhythms] = useRhythmLogs();
+  const [songs = [], , isLoadingSongs] = useSongs();
+  const [setlists = [], , isLoadingSetlists] = useSetlists();
   const navigate = useNavigate();
   const { instruments } = useInstruments();
 
-  const streak = getStreak(sessions);
-  const totalMinutes = getTotalMinutes(sessions);
+  const isLoading = isLoadingSessions || isLoadingScales || isLoadingHarmonies || isLoadingRhythms || isLoadingSongs || isLoadingSetlists;
+
+  const streak = getStreak(sessions || []);
+  const totalMinutes = getTotalMinutes(sessions || []);
   const today = getTodayEC();
 
   // Today's activity
-  const todaySessions = sessions.filter((s: any) => s.date === today);
+  const todaySessions = (sessions || []).filter((s: any) => s.date === today);
   const todayMinutes = todaySessions.reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
-  const todayScales = scaleLogs.filter((l: any) => l.date === today).length;
-  const todayHarmonies = harmonyLogs.filter((l: any) => l.date === today).length;
-  const todayRhythms = rhythmLogs.filter((l: any) => l.date === today).length;
+  const todayScales = (scaleLogs || []).filter((l: any) => l.date === today).length;
+  const todayHarmonies = (harmonyLogs || []).filter((l: any) => l.date === today).length;
+  const todayRhythms = (rhythmLogs || []).filter((l: any) => l.date === today).length;
 
   // Current week setlist
   const monday = getMonday(new Date()).toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-  const currentSetlist = setlists.find(s => s.weekStart === monday);
+  const currentSetlist = (setlists || []).find(s => s.weekStart === monday);
   const setlistCount = currentSetlist?.songIds.length ?? 0;
 
   // Last 7 days activity heatmap
@@ -42,7 +45,7 @@ export default function DashboardPage() {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-      const dayMins = sessions.filter((s: any) => s.date === dateStr).reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
+      const dayMins = (sessions || []).filter((s: any) => s.date === dateStr).reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
       days.push({
         date: dateStr,
         minutes: dayMins,
@@ -56,11 +59,11 @@ export default function DashboardPage() {
   const maxDayMins = Math.max(...last7Days.map((d: any) => d.minutes), 1);
 
   // Recent sessions
-  const recent = [...sessions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const recent = [...(sessions || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   // Category breakdown this week
   const weekStart = getMonday(new Date()).toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-  const weekSessions = sessions.filter((s: any) => s.date >= weekStart);
+  const weekSessions = (sessions || []).filter((s: any) => s.date >= weekStart);
   const weekMinutes = weekSessions.reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
 
   const catWeekMinutes = useMemo(() => {
@@ -76,6 +79,18 @@ export default function DashboardPage() {
 
   const pianoPercent = 0; // Deprecated, will use dynamic map
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {[1, 2, 3, 4, 5].map(i => <div key={i} className="stat-card h-24 animate-pulse bg-white/5" />)}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -83,9 +98,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {sessions.length === 0
-              ? 'Comienza registrando tu primera sesión'
-              : `${sessions.length} sesiones · ${songs.length} canciones en biblioteca`}
+            {(sessions || []).length} sesiones · {(songs || []).length} canciones en biblioteca
           </p>
         </div>
         <Button onClick={() => navigate('/practice')} className="gap-2">

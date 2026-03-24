@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useSessions, useHarmonyLogs, useHarmonies, useHarmonyFolders } from '@/hooks/use-music-data';
+import { useState, useMemo, useRef } from 'react';
+import { useSessions, useHarmonyLogs, useHarmonies, useHarmonyFolders, useHarmonyImages } from '@/hooks/use-music-data';
 import { generateId, getTodayEC } from '@/lib/music-utils';
 import { PREDEFINED_HARMONIES, HARMONY_CATEGORIES } from '@/lib/predefined-harmonies';
 import type { Instrument, HarmonyPracticeLog } from '@/types/music';
@@ -8,10 +8,11 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil } from 'lucide-react';
+import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { ExerciseSection } from '@/components/ExerciseSection';
 import type { InstrumentDef } from '@/types/music';
 import { useInstruments } from '@/hooks/use-instruments';
@@ -19,10 +20,12 @@ import { useInstruments } from '@/hooks/use-instruments';
 const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
 export default function HarmoniesPage() {
-  const [sessions, setSessions] = useSessions();
-  const [harmonyLogs, setHarmonyLogs] = useHarmonyLogs();
-  const [customHarmonies, setCustomHarmonies] = useHarmonies();
-  const [folders, setFolders] = useHarmonyFolders();
+  const [sessions = [], setSessions] = useSessions();
+  const [harmonyLogs = [], setHarmonyLogs, isLoadingLogs] = useHarmonyLogs();
+  const [customHarmonies = [], setCustomHarmonies, isLoadingHarmonies] = useHarmonies();
+  const [folders = [], setFolders, isLoadingFolders] = useHarmonyFolders();
+  const [allImages = [], setAllImages] = useHarmonyImages();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Folder/Harmony UI State
   const [showFolderForm, setShowFolderForm] = useState(false);
@@ -43,14 +46,13 @@ export default function HarmoniesPage() {
   const [search, setSearch] = useState('');
 
   // Video attachments
-  const [harmonyVideos, setHarmonyVideos] = useLocalStorage<Record<string, string>>('mm-harmony-videos', {});
   const [editingVideoHarmony, setEditingVideoHarmony] = useState<{id: string, name: string} | null>(null);
   const [tempVideoUrl, setTempVideoUrl] = useState('');
 
-  const openVideoEdit = (e: React.MouseEvent, id: string, name: string) => {
+  const openVideoEdit = (e: React.MouseEvent, harmony: any) => {
     e.stopPropagation(); e.preventDefault();
-    setEditingVideoHarmony({ id, name });
-    setTempVideoUrl(harmonyVideos[id] || '');
+    setEditingVideoHarmony({ id: harmony.id, name: harmony.name });
+    setTempVideoUrl(harmony.video_url || '');
   };
 
   const resetFolderForm = () => {
@@ -112,16 +114,38 @@ export default function HarmoniesPage() {
 
   const saveVideo = () => {
     if (editingVideoHarmony) {
-      setHarmonyVideos((prev: Record<string, string>) => ({ ...prev, [editingVideoHarmony.id]: tempVideoUrl }));
+      setCustomHarmonies((prev: any[]) => prev.map((h: any) => 
+        h.id === editingVideoHarmony.id ? { ...h, video_url: tempVideoUrl } : h
+      ));
+      toast.success('Video actualizado');
     }
     setEditingVideoHarmony(null);
+  };
+
+  const handleFiles = async (files: File[]) => {
+    if (!editingHarmonyId) return;
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+        const newImg = {
+          id: generateId(),
+          harmony_id: editingHarmonyId,
+          storage_path: base64,
+          file_name: file.name
+        };
+        setAllImages((prev: any[]) => [...prev, newImg]);
+      };
+      reader.readAsDataURL(file);
+    }
+    toast.success(`${files.length} imagen(es) añadida(s)`);
   };
 
   const today = getTodayEC();
 
   const todayChecked = useMemo(() => {
     const set = new Set<string>();
-    harmonyLogs
+    (harmonyLogs || [])
       .filter((l: any) => l.date === today && l.instrument === instrument)
       .forEach((l: any) => set.add(l.harmonyId));
     return set;
@@ -133,12 +157,13 @@ export default function HarmoniesPage() {
       name: h.name,
       description: h.description || '',
       category: h.type || 'otro',
-      folder_id: h.folder_id
+      folder_id: h.folder_id,
+      video_url: h.video_url,
     }));
     return [...PREDEFINED_HARMONIES, ...mappedCustom];
   }, [customHarmonies]);
 
-  const filtered = useMemo(() => allHarmonies
+  const filtered = useMemo(() => (allHarmonies || [])
     .filter((h: any) => filterCategory === 'todos' || h.category === filterCategory)
     .filter((h: any) => !search.trim() ||
       h.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -147,7 +172,7 @@ export default function HarmoniesPage() {
   [filterCategory, search, allHarmonies, filterFolder]);
 
   const groupedHarmonies = useMemo(() => {
-    const groups = folders.map((f: any) => ({
+    const groups = (folders || []).map((f: any) => ({
       folder: f,
       items: filtered.filter((h: any) => h.folder_id === f.id),
     }));
@@ -157,7 +182,7 @@ export default function HarmoniesPage() {
 
   const practiceCount = useMemo(() => {
     const counts: Record<string, number> = {};
-    harmonyLogs.forEach((l: any) => { counts[l.harmonyId] = (counts[l.harmonyId] || 0) + 1; });
+    (harmonyLogs || []).forEach((l: any) => { counts[l.harmonyId] = (counts[l.harmonyId] || 0) + 1; });
     return counts;
   }, [harmonyLogs]);
 
@@ -175,17 +200,17 @@ export default function HarmoniesPage() {
   };
 
   const saveSession = () => {
-    const checkedToday = harmonyLogs.filter((l: any) => l.date === today && l.instrument === instrument);
+    const checkedToday = (harmonyLogs || []).filter((l: any) => l.date === today && l.instrument === instrument);
     if (checkedToday.length === 0) {
       toast.error('Marca al menos una armonía antes de guardar');
       return;
     }
     const names = checkedToday
-      .map((l: any) => PREDEFINED_HARMONIES.find((h: any) => h.id === l.harmonyId)?.name)
+      .map((l: any) => allHarmonies.find((h: any) => h.id === l.harmonyId)?.name)
       .filter(Boolean)
       .join(', ');
     const notesText = `Armonías (${checkedToday.length}): ${names}`;
-    const existingSession = sessions.find((s: any) =>
+    const existingSession = (sessions || []).find((s: any) =>
       s.date === today && s.instrument === instrument && s.categories.includes('armonias')
     );
     if (existingSession) {
@@ -231,10 +256,16 @@ export default function HarmoniesPage() {
             <span className={`text-sm font-medium truncate flex items-center gap-1.5 ${checked ? 'text-primary' : 'text-foreground'}`}>
               <span className="truncate">{harmony.name}</span>
               <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditHarmony(harmony); }} className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity"><Pencil className="h-2.5 w-2.5" /></button>
-              <button onClick={(e: React.MouseEvent) => openVideoEdit(e, harmony.id, harmony.name)}
-                className={`hover:text-primary transition-colors shrink-0 ${harmonyVideos[harmony.id] ? 'text-red-500' : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'}`}>
-                <Play className="h-3.5 w-3.5" />
-              </button>
+              
+              <div className="flex items-center gap-1 shrink-0">
+                {allImages.some((img: any) => img.harmony_id === harmony.id) && (
+                  <ImageIcon className="h-3 w-3 text-primary/60" />
+                )}
+                <button onClick={(e: React.MouseEvent) => openVideoEdit(e, harmony)}
+                  className={`hover:text-primary transition-colors ${harmony.video_url ? 'text-red-500' : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'}`}>
+                  <Play className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </span>
             {count > 0 && (
               <span className="text-xs text-muted-foreground shrink-0 font-mono opacity-60">{count}×</span>
@@ -245,6 +276,15 @@ export default function HarmoniesPage() {
       </label>
     );
   };
+  if (isLoadingHarmonies || isLoadingFolders || isLoadingLogs) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+        <LoadingGrid />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -292,10 +332,10 @@ export default function HarmoniesPage() {
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2">
-            <Input placeholder="Buscar armonía..." value={search} onChange={e => setSearch(e.target.value)} className="w-40 flex-1 glass-panel border-white/5" />
+            <Input placeholder="Buscar armonía..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="w-40 flex-1 glass-panel border-white/5" />
             <select value={filterCategory} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterCategory(e.target.value)} className="glass-panel text-secondary-foreground rounded-md px-3 py-1.5 text-sm border-white/5">
               <option value="todos">Todas las categorías</option>
-              {HARMONY_CATEGORIES.map((cat: string) => <option key={cat} value={cat}>{cat}</option>)}
+              {HARMONY_CATEGORIES.map((cat) => <option key={cat.key} value={cat.key}>{cat.label}</option>)}
             </select>
           </div>
 
@@ -313,7 +353,7 @@ export default function HarmoniesPage() {
 
           {/* Harmony list */}
           <div className="space-y-6">
-            {groupedHarmonies.groups.map(({ folder, items }) => (
+            {groupedHarmonies.groups.map(({ folder, items }: { folder: any, items: any[] }) => (
               <div key={folder.id}>
                 <button
                   onClick={() => setCollapsedFolders((prev: Set<string>) => { const n = new Set(prev); n.has(folder.id) ? n.delete(folder.id) : n.add(folder.id); return n; })}
@@ -323,7 +363,7 @@ export default function HarmoniesPage() {
                   <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
                   <span className="section-title text-base">{folder.name}</span>
                   <span className="text-xs text-muted-foreground">({items.length})</span>
-                  <button onClick={e => { e.stopPropagation(); openEditFolder(folder); }} className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">editar</button>
+                  <button onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEditFolder(folder); }} className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">editar</button>
                 </button>
                 {!collapsedFolders.has(folder.id) && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ml-5">
@@ -370,7 +410,7 @@ export default function HarmoniesPage() {
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Nombre de la carpeta *</label>
-              <Input value={fFolderName} onChange={e => setFFolderName(e.target.value)} placeholder="Ej: Adoración Lenta" autoFocus />
+              <Input value={fFolderName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFFolderName(e.target.value)} placeholder="Ej: Adoración Lenta" autoFocus />
             </div>
             <div>
               <label className="text-xs text-muted-foreground text-center block mb-2">Color</label>
@@ -404,20 +444,46 @@ export default function HarmoniesPage() {
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Nombre / Etiqueta</label>
-              <Input value={hName} onChange={e => setHName(e.target.value)} placeholder="Nombre de la armonía" />
+              <Input value={hName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHName(e.target.value)} placeholder="Nombre de la armonía" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Descripción</label>
-              <Input value={hDesc} onChange={e => setHDesc(e.target.value)} placeholder="Breve nota técnica" />
+              <Input value={hDesc} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHDesc(e.target.value)} placeholder="Breve nota técnica" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Carpeta</label>
-              <select value={hFolderId || ''} onChange={e => setHFolderId(e.target.value || null)}
+              <select value={hFolderId || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setHFolderId(e.target.value || null)}
                 className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
                 <option value="">(Sin carpeta)</option>
                 {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
+            {editingHarmonyId && (
+              <div className="pt-2">
+                <label className="text-xs text-muted-foreground block mb-2">Imágenes (partituras / voicings)</label>
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-all mb-3"
+                >
+                  <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+                  <p className="text-[10px] text-muted-foreground">Sube digitaciones o capturas</p>
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" 
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) handleFiles(Array.from(e.target.files)); }} />
+                
+                <div className="grid grid-cols-4 gap-2">
+                  {allImages.filter((img: any) => img.harmony_id === editingHarmonyId).map((img: any) => (
+                    <div key={img.id} className="relative aspect-square rounded overflow-hidden border border-white/10 group">
+                      <img src={img.storage_path} className="w-full h-full object-cover" alt="prev" />
+                      <button onClick={() => setAllImages((prev: any[]) => prev.filter((i: any) => i.id !== img.id))} 
+                        className="absolute top-1 right-1 bg-destructive text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X className="h-2 w-2" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-4 border-t border-border">
               <Button variant="outline" size="sm" onClick={resetHarmonyForm}>Cancelar</Button>
               <Button size="sm" onClick={saveHarmony}>Guardar</Button>
@@ -439,7 +505,7 @@ export default function HarmoniesPage() {
             <p className="text-sm font-semibold text-primary">{editingVideoHarmony?.name}</p>
             <div>
               <label className="text-xs text-muted-foreground">Link de YouTube (ej: https://youtu.be/...)</label>
-              <Input value={tempVideoUrl} onChange={e => setTempVideoUrl(e.target.value)} placeholder="https://..." />
+              <Input value={tempVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTempVideoUrl(e.target.value)} placeholder="https://..." />
             </div>
             {tempVideoUrl && tempVideoUrl.includes('youtu') && (
               <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/10 mt-2">

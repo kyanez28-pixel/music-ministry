@@ -1,4 +1,4 @@
-import { useLocalStorage } from '@/hooks/use-local-storage';
+import { useExercises } from '@/hooks/use-music-data';
 import { ExerciseSection } from '@/components/ExerciseSection';
 import type { Exercise, ExerciseStatus } from '@/types/music';
 import { BookOpen } from 'lucide-react';
@@ -9,12 +9,24 @@ const STATUS_CONFIG: Record<ExerciseStatus, { label: string; emoji: string }> = 
   dominado:     { label: 'Dominado',     emoji: '✅' },
 };
 
+import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
+
 export default function ExercisesPage() {
-  const [exercises] = useLocalStorage<Exercise[]>('mm-exercises', []);
+  const [exercises = [], , isLoading] = useExercises();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingGrid />
+        <LoadingCard />
+      </div>
+    );
+  }
 
   // Stats
-  const totalDone = exercises.filter(e => e.status === 'dominado').length;
-  const totalInProgress = exercises.filter(e => e.status === 'en_progreso').length;
+  const totalDone = (exercises || []).filter((e: Exercise) => e.status === 'dominado').length;
+  const totalInProgress = (exercises || []).filter((e: Exercise) => e.status === 'en_progreso').length;
 
   return (
     <div className="space-y-6">
@@ -23,17 +35,17 @@ export default function ExercisesPage() {
         <div>
           <h1 className="page-title">📚 Mis Ejercicios</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {exercises.length} ejercicios registrados · {totalInProgress} en progreso · {totalDone} dominados
+            {(exercises || []).length} ejercicios registrados · {totalInProgress} en progreso · {totalDone} dominados
           </p>
         </div>
       </div>
 
       {/* Stats bar */}
-      {exercises.length > 0 && (
+      {(exercises || []).length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {(['pendiente', 'en_progreso', 'dominado'] as ExerciseStatus[]).map(s => {
-            const count = exercises.filter((e: Exercise) => e.status === s).length;
-            const pct = exercises.length > 0 ? Math.round((count / exercises.length) * 100) : 0;
+            const count = (exercises || []).filter((e: Exercise) => e.status === s).length;
+            const pct = (exercises || []).length > 0 ? Math.round((count / (exercises || []).length) * 100) : 0;
             return (
               <div key={s} className="stat-card text-center border-white/5 bg-white/5 backdrop-blur-sm">
                 <p className="text-xl font-bold font-mono text-foreground">{count}</p>
@@ -49,7 +61,7 @@ export default function ExercisesPage() {
         </div>
       )}
 
-      {exercises.length === 0 && (
+      {(exercises || []).length === 0 && (
         <div className="stat-card py-16 text-center space-y-3 glass-panel border-dashed">
           <BookOpen className="h-10 w-10 text-muted-foreground mx-auto" />
           <p className="text-muted-foreground">Aún no tienes ejercicios guardados.</p>

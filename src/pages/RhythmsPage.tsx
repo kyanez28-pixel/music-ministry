@@ -7,16 +7,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Play, Plus, FolderPlus, Trash2, Upload, X, ZoomIn, ArrowLeft, ArrowRight, BookOpen, Music2, Tag, Maximize2, ChevronDown, ChevronRight } from 'lucide-react';
-import type { Rhythm, RhythmType } from '@/types/music';
+import type { Rhythm, RhythmType, RhythmImage } from '@/types/music';
 import { useFocusMode } from '@/contexts/FocusModeContext';
 import { AppTooltip } from '@/components/AppTooltip';
-
-interface RhythmImage {
-  id: string;
-  rhythm_id: string;
-  storage_path: string;
-  file_name: string;
-}
+import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 
 const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
@@ -31,9 +25,9 @@ const RHYTHM_TYPES: Record<RhythmType, string> = {
 
 export default function RhythmsPage() {
   const { openFocusMode } = useFocusMode();
-  const [rhythms, setRhythms] = useRhythms();
-  const [allImages, setAllImages] = useRhythmImages();
-  const [folders, setFolders] = useRhythmFolders();
+  const [rhythms = [], setRhythms, isLoadingRhythms] = useRhythms();
+  const [allImages = [], setAllImages] = useRhythmImages();
+  const [folders = [], setFolders, isLoadingFolders] = useRhythmFolders();
   const [showFolderForm, setShowFolderForm] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
@@ -66,7 +60,7 @@ export default function RhythmsPage() {
   [allImages, editingId]);
 
   const filtered = useMemo(() => {
-    let list = rhythms;
+    let list = rhythms || [];
     if (filterFolder !== 'todos') list = list.filter((r: any) => r.folder_id === filterFolder);
     if (filterType !== 'todos') list = list.filter((r: any) => r.type === filterType);
     if (search.trim()) {
@@ -80,7 +74,7 @@ export default function RhythmsPage() {
   }, [rhythms, filterType, search, filterFolder]);
 
   const groupedRhythms = useMemo(() => {
-    const groups = folders.map((f: any) => ({
+    const groups = (folders || []).map((f: any) => ({
       folder: f,
       items: filtered.filter((r: any) => r.folder_id === f.id),
     }));
@@ -90,7 +84,7 @@ export default function RhythmsPage() {
 
   const imagesByRhythm = useMemo(() => {
     const map: Record<string, RhythmImage[]> = {};
-    allImages.forEach((img: any) => {
+    (allImages || []).forEach((img: any) => {
       const rid = img.rhythm_id;
       if (!map[rid]) map[rid] = [];
       map[rid].push(img);
@@ -239,6 +233,15 @@ export default function RhythmsPage() {
     const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/);
     return m ? m[1] : null;
   };
+  if (isLoadingRhythms || isLoadingFolders) {
+    return (
+      <div className="space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+        <LoadingGrid />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -248,7 +251,7 @@ export default function RhythmsPage() {
         <div>
           <h1 className="page-title">🥁 Ritmos</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center">
-            {rhythms.length} ritmos · {folders.length} carpetas
+            {(rhythms || []).length} ritmos · {(folders || []).length} carpetas
             <AppTooltip content="El total de patrones rítmicos que tienes guardados.">
               <span className="ml-1 cursor-help opacity-50">ⓘ</span>
             </AppTooltip>
@@ -281,13 +284,13 @@ export default function RhythmsPage() {
         </select>
       </div>
 
-      {folders.length > 0 && (
+      {(folders || []).length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
           <button onClick={() => setFilterFolder('todos')}
             className={`chip text-xs ${filterFolder === 'todos' ? 'chip-active' : ''}`}>
             Todas
           </button>
-          {folders.map((f: any) => (
+          {(folders || []).map((f: any) => (
             <button key={f.id} onClick={() => setFilterFolder(f.id)}
               className={`chip text-xs ${filterFolder === f.id ? 'chip-active' : ''}`}
               style={filterFolder !== f.id ? { borderLeft: `3px solid ${f.color}` } : {}}>
@@ -298,7 +301,7 @@ export default function RhythmsPage() {
       )}
 
       {/* Empty state */}
-      {rhythms.length === 0 && (
+      {(rhythms || []).length === 0 && (
         <div className="stat-card py-16 text-center space-y-3">
           <BookOpen className="h-10 w-10 text-muted-foreground mx-auto" />
           <p className="text-muted-foreground">Aún no tienes ritmos personalizados.</p>
@@ -310,7 +313,7 @@ export default function RhythmsPage() {
 
       {/* Grid */}
       <div className="space-y-6">
-        {groupedRhythms.groups.map(({ folder, items }) => (
+        {groupedRhythms.groups.map(({ folder, items }: { folder: any, items: any[] }) => (
           <div key={folder.id}>
             <button
               onClick={() => setCollapsedFolders((prev) => {
@@ -434,17 +437,17 @@ export default function RhythmsPage() {
       )}
 
       {/* Form Dialog */}
-      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+      <Dialog open={showForm} onOpenChange={(open: boolean) => { if (!open) resetForm(); }}>
         <DialogContent className="bg-card border-border max-w-lg max-h-[92vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? 'Editar' : 'Nuevo'} Ritmo</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Nombre *</label>
-              <Input value={fName} onChange={e => setFName(e.target.value)} placeholder='Ej: Bossa Nova Acústico' autoFocus />
+              <Input value={fName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFName(e.target.value)} placeholder='Ej: Bossa Nova Acústico' autoFocus />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Carpeta</label>
-              <select value={mFolderId || ''} onChange={e => setMFolderId(e.target.value || null)}
+              <select value={mFolderId || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMFolderId(e.target.value || null)}
                 className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
                 <option value="">(Sin carpeta)</option>
                 {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -453,27 +456,27 @@ export default function RhythmsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Género</label>
-                <select value={fType} onChange={e => setFType(e.target.value as RhythmType)}
+                <select value={fType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFType(e.target.value as RhythmType)}
                   className="w-full bg-secondary text-secondary-foreground rounded-md px-2 py-2 text-sm border border-border">
                   {Object.entries(RHYTHM_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Compás</label>
-                <Input value={fTime} onChange={e => setFTime(e.target.value)} placeholder="Ej: 4/4" />
+                <Input value={fTime} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFTime(e.target.value)} placeholder="Ej: 4/4" />
               </div>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">BPM</label>
-              <Input type="number" value={fBpm || ''} onChange={e => setFBpm(parseInt(e.target.value) || 0)} />
+              <Input type="number" value={fBpm || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFBpm(parseInt(e.target.value) || 0)} />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Video Link</label>
-              <Input value={fVideoUrl} onChange={e => setFVideoUrl(e.target.value)} placeholder="https://..." />
+              <Input value={fVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFVideoUrl(e.target.value)} placeholder="https://..." />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Notas</label>
-              <Textarea value={fDescription} onChange={e => setFDescription(e.target.value)} rows={3} />
+              <Textarea value={fDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFDescription(e.target.value)} rows={3} />
             </div>
             <div>
               <label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">Imágenes</label>
@@ -482,7 +485,7 @@ export default function RhythmsPage() {
                   <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-border rounded-lg p-5 text-center cursor-pointer hover:border-primary/50">
                     {uploadingImages ? <span>Subiendo...</span> : <div className="flex flex-col items-center gap-1.5 opacity-60"><Upload className="h-6 w-6" /><span>Subir o pegar imagen</span></div>}
                   </div>
-                  <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) handleFiles(Array.from(e.target.files)); e.target.value = ''; }} />
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) handleFiles(Array.from(e.target.files)); e.target.value = ''; }} />
                   {editingImages.length > 0 && (
                     <div className="grid grid-cols-3 gap-2 mt-3">
                       {editingImages.map((img: any) => (
@@ -508,13 +511,13 @@ export default function RhythmsPage() {
       </Dialog>
       
       {/* Folder Form Dialog */}
-      <Dialog open={showFolderForm} onOpenChange={open => { if (!open) resetFolderForm(); }}>
+      <Dialog open={showFolderForm} onOpenChange={(open: boolean) => { if (!open) resetFolderForm(); }}>
         <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader><DialogTitle>{editingFolderId ? 'Editar' : 'Nueva'} Carpeta</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Nombre</label>
-              <Input value={fFolderName} onChange={e => setFFolderName(e.target.value)} placeholder="Nombre..." autoFocus />
+              <Input value={fFolderName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFFolderName(e.target.value)} placeholder="Nombre..." autoFocus />
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               {FOLDER_COLORS.map(c => <button key={c} onClick={() => setFFolderColor(c)} className={`w-8 h-8 rounded-full ${fFolderColor === c ? 'ring-2 ring-white ring-offset-2' : ''}`} style={{ backgroundColor: c }} />)}
@@ -531,7 +534,7 @@ export default function RhythmsPage() {
       </Dialog>
 
       {/* Image Viewer */}
-      <Dialog open={viewerImages.length > 0} onOpenChange={open => { if (!open) setViewerImages([]); }}>
+      <Dialog open={viewerImages.length > 0} onOpenChange={(open: boolean) => { if (!open) setViewerImages([]); }}>
         <DialogContent className="bg-black/95 border-none max-w-5xl max-h-[95vh] p-0 flex flex-col justify-center items-center">
           <button onClick={() => setViewerImages([])} className="absolute top-4 right-4 text-white/50 hover:text-white"><X className="h-6 w-6" /></button>
           {viewerImages[viewerIndex] && <img src={viewerImages[viewerIndex].storage_path} className="max-w-full max-h-[85vh] object-contain" alt="rhythm" />}

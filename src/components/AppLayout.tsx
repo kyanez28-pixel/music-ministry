@@ -30,8 +30,8 @@ export default function AppLayout() {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [sessions] = useSessions();
-  const streak = getStreak(sessions);
+  const [sessions = []] = useSessions();
+  const streak = getStreak(sessions || []);
   const routeName = ROUTE_NAMES[location.pathname] ?? '';
   const { seconds, running, toggleTimer } = usePracticeTimer();
   const { requestPiP, isPipActive } = usePiP();
@@ -45,10 +45,10 @@ export default function AppLayout() {
   }, [seconds, running, isPipActive]);
   
   const today = getTodayEC();
-  const todayMinutes = sessions.filter(s => s.date === today).reduce((sum, s) => sum + s.durationMinutes, 0);
+  const todayMinutes = (sessions || []).filter(s => s.date === today).reduce((sum, s) => sum + s.durationMinutes, 0);
   
   const weekStart = getMonday(new Date()).toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-  const weekMinutes = sessions.filter(s => s.date >= weekStart).reduce((sum, s) => sum + s.durationMinutes, 0);
+  const weekMinutes = (sessions || []).filter(s => s.date >= weekStart).reduce((sum, s) => sum + s.durationMinutes, 0);
 
   return (
     <SidebarProvider>

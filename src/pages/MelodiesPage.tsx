@@ -13,6 +13,7 @@ import {
   Save, X, ChevronDown, ChevronRight, ZoomIn, ArrowLeft,
   ArrowRight, Music2, Play, Maximize2
 } from 'lucide-react';
+import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { useFocusMode } from '@/contexts/FocusModeContext';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useInstruments } from '@/hooks/use-instruments';
@@ -80,10 +81,10 @@ export default function MelodiesPage() {
   const [sessions, setSessions] = useSessions();
   
   // Use Supabase hooks instead of LocalStorage!
-  const [folders, setFolders] = useMelodyFolders();
-  const [melodies, setMelodies] = useMelodies();
-  const [allImages, setAllImages] = useMelodyImages();
-  const [practiceLogs, setPracticeLogs] = useMelodyPracticeLogs();
+  const [folders = [], setFolders, isLoadingFolders] = useMelodyFolders();
+  const [melodies = [], setMelodies, isLoadingMelodies] = useMelodies();
+  const [allImages = [], setAllImages] = useMelodyImages();
+  const [practiceLogs = [], setPracticeLogs] = useMelodyPracticeLogs();
 
   const { instruments } = useInstruments();
   const today = getTodayEC();
@@ -122,7 +123,7 @@ export default function MelodiesPage() {
   // ─── Derived data ───────────────────────────────────────────────────────────
 
   const todayLogs = useMemo(() =>
-    practiceLogs.filter(l => l.date === today && l.instrument === practiceInstrument),
+    (practiceLogs || []).filter(l => l.date === today && l.instrument === practiceInstrument),
     [practiceLogs, today, practiceInstrument]
   );
 
@@ -132,17 +133,17 @@ export default function MelodiesPage() {
   );
 
   const filteredMelodies = useMemo(() => {
-    let list = melodies;
+    let list = melodies || [];
     if (filterFolder !== 'todos') list = list.filter((m: Melody) => m.folder_id === filterFolder);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter((m: Melody) => m.name.toLowerCase().includes(q) || (m.key && m.key.toLowerCase().includes(q)));
+      list = list.filter((m: Melody) => (m.name || '').toLowerCase().includes(q) || (m.key && m.key.toLowerCase().includes(q)));
     }
     return list;
   }, [melodies, filterFolder, searchQuery]);
 
   const groupedMelodies = useMemo(() => {
-    const groups = folders.map((f: MelodyFolder) => ({
+    const groups = (folders || []).map((f: MelodyFolder) => ({
       folder: f,
       items: filteredMelodies.filter((m: Melody) => m.folder_id === f.id),
     }));
@@ -323,7 +324,7 @@ export default function MelodiesPage() {
     todayLogs.some(l => l.melody_id === melodyId);
 
   const togglePractice = (melodyId: string) => {
-    const exists = practiceLogs.find(
+    const exists = (practiceLogs || []).find(
       (l: MelodyPracticeLog) => l.melody_id === melodyId && l.date === today && l.instrument === practiceInstrument
     );
     if (exists) {
@@ -338,12 +339,12 @@ export default function MelodiesPage() {
   const saveSession = () => {
     if (todayLogs.length === 0) { toast.error('Marca al menos una melodía'); return; }
     const names = todayLogs
-      .map(l => melodies.find(m => m.id === l.melodyId)?.name)
+      .map(l => (melodies || []).find(m => m.id === l.melody_id)?.name)
       .filter(Boolean).join(', ');
     const notesText = `Melodías (${todayLogs.length}): ${names}`;
     const duration = todayLogs.length * 5;
 
-    const existingIdx = sessions.findIndex(
+    const existingIdx = (sessions || []).findIndex(
       (s: any) => s.date === today && s.instrument === practiceInstrument && s.categories.includes('melodias')
     );
     if (existingIdx >= 0) {

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { usePracticeTimer, formatTimer } from '@/hooks/use-practice-timer';
 import { useInstruments } from '@/hooks/use-instruments';
 import { InstrumentDef } from '@/types/music';
+import { LoadingCard } from '@/components/ui/LoadingCard';
 
 // ─── Sonido de aviso (Web Audio API, sin archivos externos) ──────────────────
 
@@ -58,7 +59,7 @@ function playMilestoneSound() {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function PracticePage() {
-  const [, setSessions] = useSessions();
+  const [sessions = [], setSessions, isLoading] = useSessions();
   const [date, setDate] = useState(getTodayEC());
   const [instrument, setInstrument] = useState<Instrument>('piano');
   const [categories, setCategories] = useState<PracticeCategory[]>([]);
@@ -149,6 +150,15 @@ export default function PracticePage() {
   const progressToNext = (secondsInBlock / (15 * 60)) * 100;
   const secondsToNext = (15 * 60) - secondsInBlock;
   const nextMilestoneMin = (Math.floor(timerSeconds / (15 * 60)) + 1) * 15;
+
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
+        <LoadingCard />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

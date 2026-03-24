@@ -12,17 +12,10 @@ import {
   ExternalLink, Play, BookOpen, ChevronDown, ChevronRight,
   Music2, Tag, Pencil, Trash, Maximize2
 } from 'lucide-react';
-import type { Exercise, ExerciseDifficulty, ExerciseStatus } from '@/types/music';
+import type { Exercise, ExerciseDifficulty, ExerciseStatus, ExerciseFolder, ExerciseImage } from '@/types/music';
 import { useFocusMode } from '@/contexts/FocusModeContext';
 import { AppTooltip } from '@/components/AppTooltip';
-
-// ExerciseImage shape matching Supabase schema
-interface ExerciseImage {
-  id: string;
-  exercise_id: string;
-  storage_path: string;
-  file_name: string;
-}
+import { LoadingGrid } from '@/components/ui/LoadingCard';
 
 const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
@@ -87,9 +80,9 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   defaultCategory 
 }) => {
   const { openFocusMode } = useFocusMode();
-  const [exercises, setExercises] = useExercises();
-  const [allImages, setAllImages] = useExerciseImages();
-  const [folders, setFolders] = useExerciseFolders();
+  const [exercises = [], setExercises, isLoadingEx] = useExercises();
+  const [allImages = [], setAllImages, isLoadingImg] = useExerciseImages();
+  const [folders = [], setFolders, isLoadingFolders] = useExerciseFolders();
   const [showFolderForm, setShowFolderForm] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
@@ -122,24 +115,24 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
 
   // Filter logic
   const filtered = useMemo(() => {
-    let list = exercises;
-    if (filterFolder !== 'todos') list = list.filter((e: any) => e.folder_id === filterFolder);
+    let list = exercises || [];
+    if (filterFolder !== 'todos') list = (list || []).filter((e: any) => e.folder_id === filterFolder);
     if (relatedScaleId) list = list.filter((e: any) => e.related_scale_id === relatedScaleId);
     if (relatedHarmonyId) list = list.filter((e: any) => e.related_harmony_id === relatedHarmonyId);
     
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((e: any) =>
-        e.title.toLowerCase().includes(q) ||
-        e.category.toLowerCase().includes(q) ||
-        e.description.toLowerCase().includes(q)
+        (e.title || '').toLowerCase().includes(q) ||
+        (e.category || '').toLowerCase().includes(q) ||
+        (e.description || '').toLowerCase().includes(q)
       );
     }
     return list;
   }, [exercises, relatedScaleId, relatedHarmonyId, search, filterFolder]);
 
   const groupedExercises = useMemo(() => {
-    const groups = folders.map((f: any) => ({
+    const groups = (folders || []).map((f: any) => ({
       folder: f,
       items: filtered.filter((e: any) => e.folder_id === f.id),
     }));
@@ -149,7 +142,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
 
   const imagesByExercise = useMemo(() => {
     const map: Record<string, ExerciseImage[]> = {};
-    allImages.forEach((img: any) => {
+    (allImages || []).forEach((img: any) => {
       const eid = img.exercise_id;
       if (!map[eid]) map[eid] = [];
       map[eid].push(img);
@@ -185,7 +178,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
       status: fStatus, bpm: fBpm, key: fKey,
       description: fDescription, video_url: fVideoUrl,
       progress: fProgress,
-      created_at: editingId ? (exercises.find((e: any) => e.id === editingId)?.created_at ?? today) : today,
+      created_at: editingId ? ((exercises || []).find((e: any) => e.id === editingId)?.created_at ?? today) : today,
       last_practiced: today,
       related_scale_id: relatedScaleId,
       related_harmony_id: relatedHarmonyId,
@@ -341,6 +334,10 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
     );
   };
 
+  if (isLoadingEx || isLoadingFolders) {
+    return <LoadingGrid />;
+  }
+
   return (
     <div className="space-y-4">
       {/* Search & Header Actions */}
@@ -419,7 +416,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
       )}
 
       {/* Exercise Form Dialog */}
-      <Dialog open={showForm} onOpenChange={(open) => { if (!open) resetForm(); }}>
+      <Dialog open={showForm} onOpenChange={(open: boolean) => { if (!open) resetForm(); }}>
         <DialogContent className="bg-card border-border max-w-lg max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">{editingId ? 'Editar' : 'Nuevo'} Ejercicio</DialogTitle>
@@ -427,12 +424,12 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Título *</label>
-              <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder='Ej: Intro de Montuno en C' autoFocus />
+              <Input value={fTitle} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFTitle(e.target.value)} placeholder='Ej: Intro de Montuno en C' autoFocus />
             </div>
             
             <div>
               <label className="text-xs text-muted-foreground">Carpeta</label>
-              <select value={mFolderId || ''} onChange={e => setMFolderId(e.target.value || null)}
+              <select value={mFolderId || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setMFolderId(e.target.value || null)}
                 className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
                 <option value="">(Sin carpeta)</option>
                 {folders.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -442,23 +439,40 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Categoría</label>
-                <Input value={fCategory} onChange={e => setFCategory(e.target.value)} placeholder="Ej: Montuno, Solo..." />
+                <Input value={fCategory} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFCategory(e.target.value)} placeholder="Ej: Montuno, Solo..." />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Tonalidad</label>
-                <Input value={fKey} onChange={e => setFKey(e.target.value)} placeholder="Ej: C, Am" />
+                <Input value={fKey} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFKey(e.target.value)} placeholder="Ej: C, Am" />
               </div>
             </div>
 
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Video Link</label>
               <div className="relative">
-                <Input value={fVideoUrl} onChange={(e) => setFVideoUrl(e.target.value)} placeholder="https://youtube.com..." className="pr-10" />
+                <Input value={fVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFVideoUrl(e.target.value)} placeholder="https://youtube.com..." className="pr-10" />
                 {fVideoUrl && (
                   <button onClick={() => setFVideoUrl('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive transition-colors">
                     <X className="h-4 w-4" />
                   </button>
                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Dificultad</label>
+                <select value={fDifficulty} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFDifficulty(e.target.value as ExerciseDifficulty)}
+                  className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
+                  {Object.entries(DIFFICULTY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.emoji} {v.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Estado</label>
+                <select value={fStatus} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFStatus(e.target.value as ExerciseStatus)}
+                  className="w-full bg-secondary text-secondary-foreground rounded-md px-3 py-2 text-sm border border-border">
+                  {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.emoji} {v.label}</option>)}
+                </select>
               </div>
             </div>
 
@@ -473,7 +487,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                   <p className="text-xs text-muted-foreground">Sube fotos de tus partituras o ejemplos</p>
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" 
-                  onChange={e => { if (e.target.files) handleFiles(Array.from(e.target.files)); }} />
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files) handleFiles(Array.from(e.target.files)); }} />
                 
                 <div className="grid grid-cols-4 gap-2 mt-3">
                   {allImages.filter((i: any) => i.exercise_id === editingId).map((img: ExerciseImage) => (
@@ -504,13 +518,13 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
       </Dialog>
 
       {/* Folder Form Dialog */}
-      <Dialog open={showFolderForm} onOpenChange={open => { if (!open) resetFolderForm(); }}>
+      <Dialog open={showFolderForm} onOpenChange={(open: boolean) => { if (!open) resetFolderForm(); }}>
         <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader><DialogTitle>{editingFolderId ? 'Editar' : 'Nueva'} Carpeta</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground">Nombre</label>
-              <Input value={fFolderName} onChange={e => setFFolderName(e.target.value)} placeholder="Nombre de la carpeta..." autoFocus />
+              <Input value={fFolderName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFFolderName(e.target.value)} placeholder="Nombre de la carpeta..." autoFocus />
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               {FOLDER_COLORS.map(c => <button key={c} onClick={() => setFFolderColor(c)} className={`w-8 h-8 rounded-full ${fFolderColor === c ? 'ring-2 ring-white ring-offset-2' : ''}`} style={{ backgroundColor: c }} />)}
@@ -527,7 +541,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
       </Dialog>
 
       {/* Global Image Viewer */}
-      <Dialog open={viewerImages.length > 0} onOpenChange={open => { if (!open) setViewerImages([]); }}>
+      <Dialog open={viewerImages.length > 0} onOpenChange={(open: boolean) => { if (!open) setViewerImages([]); }}>
         <DialogContent className="bg-black/95 border-none max-w-5xl max-h-[95vh] p-0 flex flex-col items-center justify-center">
           <div className="absolute top-4 right-4 z-10">
             <button onClick={() => setViewerImages([])} className="text-white bg-black/50 p-2 rounded-full hover:bg-black/80">
