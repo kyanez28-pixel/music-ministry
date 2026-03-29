@@ -1,13 +1,14 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useRhythms, useRhythmFolders, useRhythmImages } from '@/hooks/use-music-data';
-import { generateId } from '@/lib/music-utils';
+import { useRhythms, useRhythmFolders, useRhythmImages, useSessions, useRhythmPracticeLogs } from '@/hooks/use-music-data';
+import { useInstruments } from '@/hooks/use-instruments';
+import { generateId, getTodayEC } from '@/lib/music-utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Play, Plus, FolderPlus, Trash2, Upload, X, ZoomIn, ArrowLeft, ArrowRight, BookOpen, Music2, Tag, Maximize2, ChevronDown, ChevronRight } from 'lucide-react';
-import type { Rhythm, RhythmType, RhythmImage } from '@/types/music';
+import { Play, Plus, FolderPlus, Trash2, Upload, X, ZoomIn, ArrowLeft, ArrowRight, BookOpen, Music2, Tag, Maximize2, ChevronDown, ChevronRight, Image as ImageIcon, Check } from 'lucide-react';
+import type { Rhythm, RhythmType, RhythmImage, RhythmPracticeLog, Instrument } from '@/types/music';
 import { useFocusMode } from '@/contexts/FocusModeContext';
 import { AppTooltip } from '@/components/AppTooltip';
 import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
@@ -25,9 +26,16 @@ const RHYTHM_TYPES: Record<RhythmType, string> = {
 
 export default function RhythmsPage() {
   const { openFocusMode } = useFocusMode();
+  const [sessions, setSessions] = useSessions();
   const [rhythms = [], setRhythms, isLoadingRhythms] = useRhythms();
   const [allImages = [], setAllImages] = useRhythmImages();
   const [folders = [], setFolders, isLoadingFolders] = useRhythmFolders();
+  const [practiceLogs = [], setPracticeLogs] = useRhythmPracticeLogs();
+  
+  const { instruments } = useInstruments();
+  const today = getTodayEC();
+
+  const [practiceInstrument, setPracticeInstrument] = useState<Instrument>(instruments?.[0]?.id || 'piano');
   const [showFolderForm, setShowFolderForm] = useState(false);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
@@ -92,6 +100,53 @@ export default function RhythmsPage() {
     return map;
   }, [allImages]);
 
+  // ─── Practice ───────────────────────────────────────────────────────────────
+
+  const todayLogs = useMemo(() =>
+    (practiceLogs || []).filter(l => l.date === today && l.instrument === practiceInstrument),
+    [practiceLogs, today, practiceInstrument]
+  );
+
+  const isCheckedToday = (id: string) =>
+    todayLogs.some(l => l.rhythm_id === id);
+
+  const togglePractice = (id: string) => {
+    const exists = (practiceLogs || []).find(
+      (l: RhythmPracticeLog) => l.rhythm_id === id && l.date === today && l.instrument === practiceInstrument
+    );
+    if (exists) {
+      setPracticeLogs((prev: RhythmPracticeLog[]) => prev.filter((l: RhythmPracticeLog) =>
+        !(l.rhythm_id === id && l.date === today && l.instrument === practiceInstrument)
+      ));
+    } else {
+      setPracticeLogs((prev: RhythmPracticeLog[]) => [...prev, { rhythm_id: id, date: today, instrument: practiceInstrument } as RhythmPracticeLog]);
+    }
+  };
+
+  const saveSession = () => {
+    if (todayLogs.length === 0) { toast.error('Marca al menos un ritmo'); return; }
+    const names = todayLogs
+      .map(l => (rhythms || []).find(r => r.id === l.rhythm_id)?.name)
+      .filter(Boolean).join(', ');
+    const notesText = `Ritmos (${todayLogs.length}): ${names}`;
+    const duration = todayLogs.length * 5;
+
+    const newSession = {
+      id: generateId(), date: today, category: 'ritmos' as const,
+      instrument: practiceInstrument, duration, notes: notesText,
+    };
+    setSessions((prev: any[]) => {
+      const existing = prev.findIndex(s => s.date === today && s.category === 'ritmos' && s.instrument === practiceInstrument);
+      if (existing >= 0) {
+        const copy = [...prev];
+        copy[existing] = { ...copy[existing], duration: copy[existing].duration + duration, notes: copy[existing].notes + '\n' + notesText };
+        return copy;
+      }
+      return [...prev, newSession];
+    });
+    toast.success('Sesión de ritmos guardada');
+  };
+
   // ─── CRUD ─────────────────────────────────────────────────────────────────────
 
   const resetForm = () => {
@@ -115,10 +170,10 @@ export default function RhythmsPage() {
       folder_id: mFolderId,
       name: fName.trim(),
       type: fType,
-      time_signature: fTime,
+      // time_signature: fTime, // Ocluido porque falta temporalmente en BD
       bpm: fBpm,
       description: fDescription,
-      video_url: fVideoUrl,
+      video_url: fVideoUrl || undefined,
     };
     if (editingId) {
       setRhythms((prev: any[]) => prev.map((r: any) => r.id === editingId ? rhm : r));
@@ -176,7 +231,31 @@ export default function RhythmsPage() {
   const fileToBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 800; // Límite reducido de resolución
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height *= maxDim / width;
+              width = maxDim;
+            } else {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
@@ -233,6 +312,12 @@ export default function RhythmsPage() {
     const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/);
     return m ? m[1] : null;
   };
+
+  const getVideoDisplayUrl = (url: string) => {
+    const ytId = getYouTubeId(url);
+    if (ytId) return { type: 'youtube' as const, id: ytId };
+    return { type: 'external' as const, url };
+  };
   if (isLoadingRhythms || isLoadingFolders) {
     return (
       <div className="space-y-6">
@@ -270,6 +355,29 @@ export default function RhythmsPage() {
           </AppTooltip>
         </div>
       </div>
+
+      {/* Practice Bar */}
+      {(rhythms || []).length > 0 && (
+        <div className="stat-card">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 p-1 bg-secondary/30 rounded-lg">
+                <Music2 className="h-4 w-4 text-muted-foreground ml-1" />
+                <select value={practiceInstrument} onChange={e => setPracticeInstrument(e.target.value as Instrument)}
+                  className="bg-transparent border-none text-sm text-foreground focus:ring-0 cursor-pointer pl-1 pr-6 py-1 font-medium">
+                  {instruments.map((inst: any) => <option key={inst.id} value={inst.id}>Practicar con: {inst.name}</option>)}
+                </select>
+              </div>
+              <span className="text-sm font-medium">
+                <span className="text-primary">{todayLogs.length}</span> marcados hoy
+              </span>
+            </div>
+            <Button size="sm" variant={todayLogs.length > 0 ? "default" : "secondary"} className="gap-2" onClick={saveSession}>
+              <Check className="h-4 w-4" /> Guardar Sesión
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
@@ -349,11 +457,18 @@ export default function RhythmsPage() {
                             <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover/img:opacity-100 transition-all" />
                           </div>
                         </div>
-                      ) : rhm.video_url && getYouTubeId(rhm.video_url) ? (
-                        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/vid" onClick={() => window.open(rhm.video_url, '_blank')}>
-                          <img src={`https://img.youtube.com/vi/${getYouTubeId(rhm.video_url!)}/mqdefault.jpg`} alt="Video" className="w-full h-40 object-cover" />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Play className="h-8 w-8 text-white fill-white" /></div>
-                        </div>
+                      ) : rhm.video_url ? (
+                        getYouTubeId(rhm.video_url) ? (
+                          <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/vid" onClick={() => window.open(rhm.video_url, '_blank')}>
+                            <img src={`https://img.youtube.com/vi/${getYouTubeId(rhm.video_url!)}/mqdefault.jpg`} alt="Video" className="w-full h-40 object-cover" />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Play className="h-8 w-8 text-white fill-white" /></div>
+                          </div>
+                        ) : (
+                          <div className="-mx-4 -mt-4 mb-3 bg-secondary/40 border-b border-border px-4 py-3 flex items-center gap-2 cursor-pointer hover:bg-secondary/60 transition-colors" onClick={() => window.open(rhm.video_url, '_blank')}>
+                            <Play className="h-4 w-4 text-primary shrink-0" />
+                            <span className="text-xs text-muted-foreground truncate">{rhm.video_url}</span>
+                          </div>
+                        )
                       ) : null}
 
                       <AppTooltip content="Modo Enfoque">
@@ -364,8 +479,16 @@ export default function RhythmsPage() {
                       </AppTooltip>
 
                       <div className="space-y-2">
-                        <h4 className="font-semibold text-lg leading-tight cursor-pointer hover:text-primary transition-colors" onClick={() => openEdit(rhm)}>{rhm.name}</h4>
-                        <div className="flex gap-4 text-[11px] text-muted-foreground/80">
+                        <div className="flex items-start gap-2">
+                          <button onClick={e => { e.stopPropagation(); togglePractice(rhm.id); }}
+                            className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-300 ${
+                              isCheckedToday(rhm.id) ? 'bg-primary border-primary shadow-[0_0_10px_hsl(var(--primary)/0.3)]' : 'border-muted-foreground/30 hover:border-primary/60'
+                            }`}>
+                            {isCheckedToday(rhm.id) && <Check className="h-3 w-3 text-primary-foreground stroke-[3px]" />}
+                          </button>
+                          <h4 className={`font-semibold text-lg leading-tight cursor-pointer transition-colors ${isCheckedToday(rhm.id) ? 'text-primary' : 'hover:text-primary'}`} onClick={() => openEdit(rhm)}>{rhm.name}</h4>
+                        </div>
+                        <div className="flex gap-4 text-[11px] text-muted-foreground/80 pl-7">
                           {rhm.time_signature && <span>🕒 {rhm.time_signature}</span>}
                           {rhm.bpm > 0 && <span className="font-mono">♩ {rhm.bpm} BPM</span>}
                         </div>
@@ -398,11 +521,18 @@ export default function RhythmsPage() {
                             <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover/img:opacity-100 transition-all" />
                           </div>
                         </div>
-                    ) : rhm.video_url && getYouTubeId(rhm.video_url) ? (
-                        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/vid" onClick={() => window.open(rhm.video_url, '_blank')}>
-                          <img src={`https://img.youtube.com/vi/${getYouTubeId(rhm.video_url!)}/mqdefault.jpg`} alt="Video" className="w-full h-40 object-cover" />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Play className="h-8 w-8 text-white fill-white" /></div>
-                        </div>
+                    ) : rhm.video_url ? (
+                        getYouTubeId(rhm.video_url) ? (
+                          <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group/vid" onClick={() => window.open(rhm.video_url, '_blank')}>
+                            <img src={`https://img.youtube.com/vi/${getYouTubeId(rhm.video_url!)}/mqdefault.jpg`} alt="Video" className="w-full h-40 object-cover" />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Play className="h-8 w-8 text-white fill-white" /></div>
+                          </div>
+                        ) : (
+                          <div className="-mx-4 -mt-4 mb-3 bg-secondary/40 border-b border-border px-4 py-3 flex items-center gap-2 cursor-pointer hover:bg-secondary/60 transition-colors" onClick={() => window.open(rhm.video_url, '_blank')}>
+                            <Play className="h-4 w-4 text-primary shrink-0" />
+                            <span className="text-xs text-muted-foreground truncate">{rhm.video_url}</span>
+                          </div>
+                        )
                     ) : null}
 
                     <AppTooltip content="Modo Enfoque">
@@ -413,8 +543,16 @@ export default function RhythmsPage() {
                     </AppTooltip>
 
                     <div className="space-y-2">
-                      <h4 className="font-semibold text-lg leading-tight cursor-pointer hover:text-primary transition-colors" onClick={() => openEdit(rhm)}>{rhm.name}</h4>
-                      <div className="flex gap-4 text-[11px] text-muted-foreground/80">
+                      <div className="flex items-start gap-2">
+                        <button onClick={e => { e.stopPropagation(); togglePractice(rhm.id); }}
+                          className={`mt-0.5 shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-300 ${
+                            isCheckedToday(rhm.id) ? 'bg-primary border-primary shadow-[0_0_10px_hsl(var(--primary)/0.3)]' : 'border-muted-foreground/30 hover:border-primary/60'
+                          }`}>
+                          {isCheckedToday(rhm.id) && <Check className="h-3 w-3 text-primary-foreground stroke-[3px]" />}
+                        </button>
+                        <h4 className={`font-semibold text-lg leading-tight cursor-pointer transition-colors ${isCheckedToday(rhm.id) ? 'text-primary' : 'hover:text-primary'}`} onClick={() => openEdit(rhm)}>{rhm.name}</h4>
+                      </div>
+                      <div className="flex gap-4 text-[11px] text-muted-foreground/80 pl-7">
                         {rhm.time_signature && <span>🕒 {rhm.time_signature}</span>}
                         {rhm.bpm > 0 && <span className="font-mono">♩ {rhm.bpm} BPM</span>}
                       </div>
@@ -471,15 +609,21 @@ export default function RhythmsPage() {
               <Input type="number" value={fBpm || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFBpm(parseInt(e.target.value) || 0)} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Video Link</label>
-              <Input value={fVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFVideoUrl(e.target.value)} placeholder="https://..." />
+              <label className="text-xs text-muted-foreground">Video / Referencia</label>
+              <Input value={fVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFVideoUrl(e.target.value)} placeholder="YouTube, Spotify, Drive, cualquier URL..." />
+              {fVideoUrl && (
+                <p className="text-[10px] text-muted-foreground mt-1 opacity-70 truncate">🔗 {fVideoUrl}</p>
+              )}
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Notas</label>
               <Textarea value={fDescription} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFDescription(e.target.value)} rows={3} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">Imágenes</label>
+              <label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
+                <ImageIcon className="h-3 w-3" />
+                Imágenes
+              </label>
               {editingId ? (
                 <>
                   <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-border rounded-lg p-5 text-center cursor-pointer hover:border-primary/50">

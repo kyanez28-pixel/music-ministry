@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSessions } from '@/hooks/use-music-data';
-import { generateId, getTodayEC } from '@/lib/music-utils';
+import { generateId, getTodayEC, formatDuration } from '@/lib/music-utils';
 import { ALL_CATEGORIES, CATEGORY_LABELS, type PracticeCategory, type Instrument } from '@/types/music';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,7 +91,7 @@ export default function PracticePage() {
       const totalMins = currentMilestone * 15;
       const h = Math.floor(totalMins / 60);
       const m = totalMins % 60;
-      const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m} minutos`;
+      const label = formatDuration(totalMins);
 
       playMilestoneSound();
 
@@ -228,7 +228,7 @@ export default function PracticePage() {
 
               {timerSeconds > 0 && (
                 <p className="text-xs text-muted-foreground font-mono">
-                  ≈ {timerMinutes} min{timerMinutes !== 1 ? 's' : ''} practicado{timerMinutes !== 1 ? 's' : ''}
+                  ≈ {formatDuration(timerMinutes)} practicado{timerMinutes !== 1 ? 's' : ''}
                 </p>
               )}
 
@@ -294,7 +294,7 @@ export default function PracticePage() {
               </div>
               {(manualHours > 0 || manualMins > 0) && (
                 <p className="text-xs text-center text-muted-foreground">
-                  = {manualHours * 60 + manualMins} minutos totales
+                  = {manualHours * 60 + manualMins} min totales
                 </p>
               )}
               <button onClick={() => setUseManual(false)} className="text-xs text-primary hover:underline block mx-auto">

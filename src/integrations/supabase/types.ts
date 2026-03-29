@@ -7,319 +7,99 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
-      melodies: {
+      weekly_setlists: {
         Row: {
-          bpm: number | null
-          created_at: string
-          description: string | null
-          folder_id: string | null
           id: string
-          instrument: string
-          key: string | null
-          name: string
-          progress: number | null
-          status: string
-          time_signature: string | null
-          updated_at: string
-        }
-        Insert: {
-          bpm?: number | null
-          created_at?: string
-          description?: string | null
-          folder_id?: string | null
-          id?: string
-          instrument?: string
-          key?: string | null
-          name: string
-          progress?: number | null
-          status?: string
-          time_signature?: string | null
-          updated_at?: string
-        }
-        Update: {
-          bpm?: number | null
-          created_at?: string
-          description?: string | null
-          folder_id?: string | null
-          id?: string
-          instrument?: string
-          key?: string | null
-          name?: string
-          progress?: number | null
-          status?: string
-          time_signature?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "melodies_folder_id_fkey"
-            columns: ["folder_id"]
-            isOneToOne: false
-            referencedRelation: "melody_folders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      melody_folders: {
-        Row: {
-          color: string | null
           created_at: string
-          id: string
-          name: string
-          sort_order: number | null
+          user_id: string
+          weekStart: string
+          songIds: string[]
+          rehearsalNotes: string | null
+          practicedSongIds: string[] | null
         }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          name: string
-          sort_order?: number | null
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          name?: string
-          sort_order?: number | null
-        }
+        Insert: { id?: string; created_at?: string; user_id: string; weekStart: string; songIds?: string[]; rehearsalNotes?: string | null; practicedSongIds?: string[] | null; }
+        Update: { id?: string; created_at?: string; user_id?: string; weekStart?: string; songIds?: string[]; rehearsalNotes?: string | null; practicedSongIds?: string[] | null; }
         Relationships: []
       }
-      melody_images: {
-        Row: {
-          created_at: string
-          file_name: string
-          id: string
-          melody_id: string
-          sort_order: number | null
-          storage_path: string
-        }
-        Insert: {
-          created_at?: string
-          file_name: string
-          id?: string
-          melody_id: string
-          sort_order?: number | null
-          storage_path: string
-        }
-        Update: {
-          created_at?: string
-          file_name?: string
-          id?: string
-          melody_id?: string
-          sort_order?: number | null
-          storage_path?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "melody_images_melody_id_fkey"
-            columns: ["melody_id"]
-            isOneToOne: false
-            referencedRelation: "melodies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      melody_practice_logs: {
-        Row: {
-          created_at: string
-          date: string
-          id: string
-          instrument: string
-          melody_id: string
-        }
-        Insert: {
-          created_at?: string
-          date: string
-          id?: string
-          instrument?: string
-          melody_id: string
-        }
-        Update: {
-          created_at?: string
-          date?: string
-          id?: string
-          instrument?: string
-          melody_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "melody_practice_logs_melody_id_fkey"
-            columns: ["melody_id"]
-            isOneToOne: false
-            referencedRelation: "melodies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      rhythm_folders: {
-        Row: {
-          color: string | null
-          created_at: string
-          id: string
-          name: string
-          sort_order: number | null
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          name: string
-          sort_order?: number | null
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          name?: string
-          sort_order?: number | null
-        }
+      scale_logs: {
+        Row: { id: string; user_id: string; date: string; instrument: string; scale_id: string; created_at: string; }
+        Insert: { id?: string; user_id: string; date: string; instrument: string; scale_id: string; created_at?: string; }
+        Update: { id?: string; user_id?: string; date?: string; instrument?: string; scale_id?: string; created_at?: string; }
         Relationships: []
       }
-      rhythm_images: {
-        Row: {
-          created_at: string
-          file_name: string
-          id: string
-          rhythm_id: string
-          sort_order: number | null
-          storage_path: string
-        }
-        Insert: {
-          created_at?: string
-          file_name: string
-          id?: string
-          rhythm_id: string
-          sort_order?: number | null
-          storage_path: string
-        }
-        Update: {
-          created_at?: string
-          file_name?: string
-          id?: string
-          rhythm_id?: string
-          sort_order?: number | null
-          storage_path?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rhythm_images_rhythm_id_fkey"
-            columns: ["rhythm_id"]
-            isOneToOne: false
-            referencedRelation: "rhythms"
-            referencedColumns: ["id"]
-          },
-        ]
+      harmony_logs: {
+        Row: { id: string; user_id: string; date: string; instrument: string; harmony_id: string; created_at: string; }
+        Insert: { id?: string; user_id: string; date: string; instrument: string; harmony_id: string; created_at?: string; }
+        Update: { id?: string; user_id?: string; date?: string; instrument?: string; harmony_id?: string; created_at?: string; }
+        Relationships: []
       }
       rhythm_practice_logs: {
-        Row: {
-          created_at: string
-          date: string
-          id: string
-          instrument: string
-          rhythm_id: string
-        }
-        Insert: {
-          created_at?: string
-          date: string
-          id?: string
-          instrument?: string
-          rhythm_id: string
-        }
-        Update: {
-          created_at?: string
-          date?: string
-          id?: string
-          instrument?: string
-          rhythm_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rhythm_practice_logs_rhythm_id_fkey"
-            columns: ["rhythm_id"]
-            isOneToOne: false
-            referencedRelation: "rhythms"
-            referencedColumns: ["id"]
-          },
-        ]
+        Row: { id: string; user_id: string; date: string; instrument: string; rhythm_id: string; created_at: string; }
+        Insert: { id?: string; user_id: string; date: string; instrument: string; rhythm_id: string; created_at?: string; }
+        Update: { id?: string; user_id?: string; date?: string; instrument?: string; rhythm_id?: string; created_at?: string; }
+        Relationships: []
+      }
+      melody_practice_logs: {
+        Row: { id: string; user_id: string; date: string; instrument: string; melody_id: string; created_at: string; }
+        Insert: { id?: string; user_id: string; date: string; instrument: string; melody_id: string; created_at?: string; }
+        Update: { id?: string; user_id?: string; date?: string; instrument?: string; melody_id?: string; created_at?: string; }
+        Relationships: []
+      }
+      scales: {
+        Row: { id: string; user_id: string; name: string; type: string; folder_id: string | null; video_url: string | null; created_at: string; }
+        Insert: { id?: string; user_id: string; name: string; type: string; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Update: { id?: string; user_id?: string; name?: string; type?: string; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Relationships: []
+      }
+      harmonies: {
+        Row: { id: string; user_id: string; name: string; type: string; description: string | null; folder_id: string | null; video_url: string | null; created_at: string; }
+        Insert: { id?: string; user_id: string; name: string; type: string; description?: string | null; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Update: { id?: string; user_id?: string; name?: string; type?: string; description?: string | null; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Relationships: []
       }
       rhythms: {
-        Row: {
-          bpm: number | null
-          created_at: string
-          description: string | null
-          folder_id: string | null
-          id: string
-          instrument: string
-          key: string | null
-          name: string
-          progress: number | null
-          status: string
-          time_signature: string | null
-          updated_at: string
-        }
-        Insert: {
-          bpm?: number | null
-          created_at?: string
-          description?: string | null
-          folder_id?: string | null
-          id?: string
-          instrument?: string
-          key?: string | null
-          name: string
-          progress?: number | null
-          status?: string
-          time_signature?: string | null
-          updated_at?: string
-        }
-        Update: {
-          bpm?: number | null
-          created_at?: string
-          description?: string | null
-          folder_id?: string | null
-          id?: string
-          instrument?: string
-          key?: string | null
-          name?: string
-          progress?: number | null
-          status?: string
-          time_signature?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rhythms_folder_id_fkey"
-            columns: ["folder_id"]
-            isOneToOne: false
-            referencedRelation: "rhythm_folders"
-            referencedColumns: ["id"]
-          },
-        ]
+        Row: { id: string; user_id: string; name: string; type: string; bpm: number | null; description: string | null; folder_id: string | null; video_url: string | null; created_at: string; }
+        Insert: { id?: string; user_id: string; name: string; type: string; bpm?: number | null; description?: string | null; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Update: { id?: string; user_id?: string; name?: string; type?: string; bpm?: number | null; description?: string | null; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Relationships: []
       }
+      melodies: {
+        Row: { id: string; user_id: string; name: string; instrument: string; status: string; bpm: number | null; key: string | null; time_signature: string | null; description: string | null; folder_id: string | null; video_url: string | null; created_at: string; }
+        Insert: { id?: string; user_id: string; name: string; instrument: string; status: string; bpm?: number | null; key?: string | null; time_signature?: string | null; description?: string | null; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Update: { id?: string; user_id?: string; name?: string; instrument?: string; status?: string; bpm?: number | null; key?: string | null; time_signature?: string | null; description?: string | null; folder_id?: string | null; video_url?: string | null; created_at?: string; }
+        Relationships: []
+      }
+      scale_folders: { Row: { id: string; user_id: string; name: string; color: string; created_at: string; }; Insert: { id?: string; user_id: string; name: string; color: string; created_at?: string; }; Update: { id?: string; user_id?: string; name?: string; color?: string; created_at?: string; }; Relationships: []; }
+      harmony_folders: { Row: { id: string; user_id: string; name: string; color: string; created_at: string; }; Insert: { id?: string; user_id: string; name: string; color: string; created_at?: string; }; Update: { id?: string; user_id?: string; name?: string; color?: string; created_at?: string; }; Relationships: []; }
+      rhythm_folders: { Row: { id: string; user_id: string; name: string; color: string; created_at: string; }; Insert: { id?: string; user_id: string; name: string; color: string; created_at?: string; }; Update: { id?: string; user_id?: string; name?: string; color?: string; created_at?: string; }; Relationships: []; }
+      melody_folders: { Row: { id: string; user_id: string; name: string; color: string; created_at: string; }; Insert: { id?: string; user_id: string; name: string; color: string; created_at?: string; }; Update: { id?: string; user_id?: string; name?: string; color?: string; created_at?: string; }; Relationships: []; }
+      scale_images: { Row: { id: string; user_id: string; scale_id: string; storage_path: string; file_name: string; created_at: string; }; Insert: { id?: string; user_id: string; scale_id: string; storage_path: string; file_name: string; created_at?: string; }; Update: { id?: string; user_id?: string; scale_id?: string; storage_path?: string; file_name?: string; created_at?: string; }; Relationships: []; }
+      harmony_images: { Row: { id: string; user_id: string; harmony_id: string; storage_path: string; file_name: string; created_at: string; }; Insert: { id?: string; user_id: string; harmony_id: string; storage_path: string; file_name: string; created_at?: string; }; Update: { id?: string; user_id?: string; harmony_id?: string; storage_path?: string; file_name?: string; created_at?: string; }; Relationships: []; }
+      rhythm_images: { Row: { id: string; user_id: string; rhythm_id: string; storage_path: string; file_name: string; created_at: string; }; Insert: { id?: string; user_id: string; rhythm_id: string; storage_path: string; file_name: string; created_at?: string; }; Update: { id?: string; user_id?: string; rhythm_id?: string; storage_path?: string; file_name?: string; created_at?: string; }; Relationships: []; }
+      melody_images: { Row: { id: string; user_id: string; melody_id: string; storage_path: string; file_name: string; created_at: string; }; Insert: { id?: string; user_id: string; melody_id: string; storage_path: string; file_name: string; created_at?: string; }; Update: { id?: string; user_id?: string; melody_id?: string; storage_path?: string; file_name?: string; created_at?: string; }; Relationships: []; }
+      songs: {
+        Row: { id: string; user_id: string; title: string; artist: string; key: string; genre: string; instrument: string; notes: string | null; reference_url: string | null; created_at: string; }
+        Insert: { id?: string; user_id: string; title: string; artist: string; key: string; genre: string; instrument: string; notes?: string | null; reference_url?: string | null; created_at?: string; }
+        Update: { id?: string; user_id?: string; title?: string; artist?: string; key?: string; genre?: string; instrument?: string; notes?: string | null; reference_url?: string | null; created_at?: string; }
+        Relationships: []
+      }
+      exercises: { Row: { id: string; user_id: string; title: string; category: string; instrument: string; difficulty: string; status: string; bpm: number | null; key: string | null; description: string | null; video_url: string | null; progress: number | null; created_at: string; last_practiced: string | null; related_scale_id: string | null; related_harmony_id: string | null; }; Insert: { id?: string; user_id: string; title: string; category: string; instrument: string; difficulty: string; status: string; bpm?: number | null; key?: string | null; description?: string | null; video_url?: string | null; progress?: number | null; created_at?: string; last_practiced?: string | null; related_scale_id?: string | null; related_harmony_id?: string | null; }; Update: { id?: string; user_id?: string; title?: string; category?: string; instrument?: string; difficulty?: string; status?: string; bpm?: number | null; key?: string | null; description?: string | null; video_url?: string | null; progress?: number | null; created_at?: string; last_practiced?: string | null; related_scale_id?: string | null; related_harmony_id?: string | null; }; Relationships: []; }
+      exercise_folders: { Row: { id: string; user_id: string; name: string; color: string; created_at: string; }; Insert: { id?: string; user_id: string; name: string; color: string; created_at?: string; }; Update: { id?: string; user_id?: string; name?: string; color?: string; created_at?: string; }; Relationships: []; }
+      exercise_images: { Row: { id: string; user_id: string; exercise_id: string; storage_path: string; file_name: string; created_at: string; }; Insert: { id?: string; user_id: string; exercise_id: string; storage_path: string; file_name: string; created_at?: string; }; Update: { id?: string; user_id?: string; exercise_id?: string; storage_path?: string; file_name?: string; created_at?: string; }; Relationships: []; }
     }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      [_ in never]: never
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+    Views: { [_ in never]: never }
+    Functions: { [_ in never]: never }
+    Enums: { [_ in never]: never }
+    CompositeTypes: { [_ in never]: never }
   }
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<

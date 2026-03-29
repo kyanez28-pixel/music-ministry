@@ -245,21 +245,51 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   const handleFiles = useCallback(async (files: File[]) => {
     if (!editingId) { toast.error('Guarda el ejercicio primero'); return; }
     const imageFiles = files.filter(f => f.type.startsWith('image/'));
-    const tooBig = imageFiles.filter(f => f.size > 3 * 1024 * 1024);
-    if (tooBig.length > 0) { toast.error(`${tooBig.length} imagen(es) superan 3MB`); return; }
+    if (imageFiles.length === 0) return;
+    
     setUploadingImages(true);
     try {
-      const reader = (f: File) => new Promise<string>((resolve) => {
-        const r = new FileReader(); r.onload = () => resolve(r.result as string); r.readAsDataURL(f);
-      });
-      const newImages: ExerciseImage[] = await Promise.all(
-        imageFiles.map(async file => ({
-          id: generateId(), exercise_id: editingId,
-          storage_path: await reader(file), file_name: file.name,
-        }))
+      const compressedImages: ExerciseImage[] = await Promise.all(
+        imageFiles.map(async file => {
+          return new Promise<ExerciseImage>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const maxDim = 1200;
+                if (width > maxDim || height > maxDim) {
+                  if (width > height) {
+                    height *= maxDim / width;
+                    width = maxDim;
+                  } else {
+                    width *= maxDim / height;
+                    height = maxDim;
+                  }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                resolve({
+                  id: generateId(),
+                  exercise_id: editingId,
+                  storage_path: canvas.toDataURL('image/jpeg', 0.7),
+                  file_name: file.name
+                });
+              };
+              img.onerror = reject;
+              img.src = e.target?.result as string;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        })
       );
-      setAllImages((prev: any[]) => [...prev, ...newImages]);
-      toast.success(`${newImages.length} imagen(es) guardada(s)`);
+      setAllImages((prev: any[]) => [...prev, ...compressedImages]);
+      toast.success(`${compressedImages.length} imagen(es) guardada(s)`);
     } catch { toast.error('Error al procesar las imágenes'); }
     finally { setUploadingImages(false); }
   }, [editingId, setAllImages]);

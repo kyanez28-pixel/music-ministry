@@ -1,0 +1,44 @@
+src/components/FocusMode.tsx(112,50): error TS2339: Property 'dataUrl' does not exist on type 'ExerciseImage'.
+src/hooks/use-music-data.ts(16,37): error TS2589: Type instantiation is excessively deep and possibly infinite.
+src/hooks/use-music-data.ts(16,51): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { ...; }, { ...; } | ... 6 more ... | { ...; }, "melody_folders" | ... 6 more ... | "rhythm_practice_logs", [...] | ... 5 more ... | [...]>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type '"melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { Tables: { melodies: { Row: { bpm: number; created_at: string; description: string; folder_id: string; id: string; instrument: string; key: string; ... 4 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 6 more ...; rhythms: { ...; }; }; Views: {}; Functions: {}; Enums: {}; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'never'.
+src/hooks/use-music-data.ts(43,61): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { ...; }, { ...; } | ... 6 more ... | { ...; }, "melody_folders" | ... 6 more ... | "rhythm_practice_logs", [...] | ... 5 more ... | [...]>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type '"melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { Tables: { melodies: { Row: { bpm: number; created_at: string; description: string; folder_id: string; id: string; instrument: string; key: string; ... 4 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 6 more ...; rhythms: { ...; }; }; Views: {}; Functions: {}; Enums: {}; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'never'.
+src/hooks/use-music-data.ts(47,63): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { ...; }, { ...; } | ... 6 more ... | { ...; }, "melody_folders" | ... 6 more ... | "rhythm_practice_logs", [...] | ... 5 more ... | [...]>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type '"melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { Tables: { melodies: { Row: { bpm: number; created_at: string; description: string; folder_id: string; id: string; instrument: string; key: string; ... 4 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 6 more ...; rhythms: { ...; }; }; Views: {}; Functions: {}; Enums: {}; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'never'.
+src/hooks/use-music-data.ts(67,64): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { ...; }, { ...; } | ... 6 more ... | { ...; }, "melody_folders" | ... 6 more ... | "rhythm_practice_logs", [...] | ... 5 more ... | [...]>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type '"melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { Tables: { melodies: { Row: { bpm: number; created_at: string; description: string; folder_id: string; id: string; instrument: string; key: string; ... 4 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 6 more ...; rhythms: { ...; }; }; Views: {}; Functions: {}; Enums: {}; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'never'.
+src/hooks/use-music-data.ts(71,64): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { ...; }, { ...; } | ... 6 more ... | { ...; }, "melody_folders" | ... 6 more ... | "rhythm_practice_logs", [...] | ... 5 more ... | [...]>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type '"melody_folders" | "melodies" | "rhythms" | "rhythm_folders" | "melody_images" | "melody_practice_logs" | "rhythm_images" | "rhythm_practice_logs"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.4"; }, { Tables: { melodies: { Row: { bpm: number; created_at: string; description: string; folder_id: string; id: string; instrument: string; key: string; ... 4 more ...; updated_at: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 6 more ...; rhythms: { ...; }; }; Views: {}; Functions: {}; Enums: {}; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'never'.
+src/integrations/supabase/client.ts(5,34): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/integrations/supabase/client.ts(6,46): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/integrations/supabase/client.ts(9,17): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/pages/HarmoniesPage.tsx(155,25): error TS2304: Cannot find name 'editingId'.
+src/pages/SetlistPage.tsx(156,7): error TS2561: Object literal may only specify known properties, but 'referenceUrl' does not exist in type 'Song'. Did you mean to write 'reference_url'?
+src/pages/SetlistPage.tsx(182,23): error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<"piano" | "guitarra" | "ambos">'.
+src/pages/SetlistPage.tsx(184,21): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(286,22): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(286,53): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(288,76): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(289,78): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(295,25): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(296,32): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(411,22): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(411,53): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(413,76): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?
+src/pages/SetlistPage.tsx(414,78): error TS2551: Property 'referenceUrl' does not exist on type 'Song'. Did you mean 'reference_url'?

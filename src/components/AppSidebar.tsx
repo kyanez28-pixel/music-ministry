@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useSongs, useSetlists, useScaleLogs, useHarmonyLogs, useRhythmLogs } from '@/hooks/use-music-data';
+import { useSongs, useSetlists, useScaleLogs, useHarmonyLogs, useRhythmPracticeLogs } from '@/hooks/use-music-data';
 import { getMonday, getTodayEC } from '@/lib/music-utils';
 import { useInstruments } from '@/hooks/use-instruments';
 import { Settings2 } from 'lucide-react';
@@ -58,7 +58,7 @@ export function AppSidebar() {
   const [setlists = []] = useSetlists();
   const [scaleLogs = []] = useScaleLogs();
   const [harmonyLogs = []] = useHarmonyLogs();
-  const [rhythmLogs = []] = useRhythmLogs();
+  const [rhythmPracticeLogs = []] = useRhythmPracticeLogs();
   const { instruments } = useInstruments();
   const { isInstallable, installApp } = usePWAInstall();
 
@@ -70,7 +70,7 @@ export function AppSidebar() {
   // Badges para actividad de hoy
   const todayScales = (scaleLogs || []).filter((l: any) => l.date === today).length;
   const todayHarmonies = (harmonyLogs || []).filter((l: any) => l.date === today).length;
-  const todayRhythms = (rhythmLogs || []).filter((l: any) => l.date === today).length;
+  const todayRhythms = (rhythmPracticeLogs || []).filter((l: any) => l.date === today).length;
 
   const getBadge = (title: string): number | null => {
     if (title === 'Setlist Semanal' && setlistCount > 0) return setlistCount;

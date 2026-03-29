@@ -169,19 +169,19 @@ export interface WeeklySetlist {
 }
 
 export interface ScalePracticeLog {
-  scaleId: string;
+  scale_id: string;
   date: string;
   instrument: Instrument;
 }
 
 export interface HarmonyPracticeLog {
-  harmonyId: string;
+  harmony_id: string;
   date: string;
   instrument: Instrument;
 }
 
 export interface RhythmPracticeLog {
-  rhythmItemId: string;
+  rhythm_id: string;
   date: string;
   instrument: Instrument;
 }

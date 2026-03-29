@@ -124,21 +124,45 @@ export default function HarmoniesPage() {
 
   const handleFiles = async (files: File[]) => {
     if (!editingHarmonyId) return;
-    for (const file of files) {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    
+    for (const file of imageFiles) {
       const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
-        const newImg = {
-          id: generateId(),
-          harmony_id: editingHarmonyId,
-          storage_path: base64,
-          file_name: file.name
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1200;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height *= maxDim / width;
+              width = maxDim;
+            } else {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.7);
+          
+          const newImg = {
+            id: generateId(),
+            harmony_id: editingHarmonyId,
+            storage_path: base64,
+            file_name: file.name
+          };
+          setAllImages((prev: any[]) => [...prev, newImg]);
         };
-        setAllImages((prev: any[]) => [...prev, newImg]);
+        img.src = e.target?.result as string;
       };
       reader.readAsDataURL(file);
     }
-    toast.success(`${files.length} imagen(es) añadida(s)`);
+    toast.success(`${imageFiles.length} imagen(es) añadida(s)`);
   };
 
   const today = getTodayEC();
@@ -147,7 +171,7 @@ export default function HarmoniesPage() {
     const set = new Set<string>();
     (harmonyLogs || [])
       .filter((l: any) => l.date === today && l.instrument === instrument)
-      .forEach((l: any) => set.add(l.harmonyId));
+      .forEach((l: any) => set.add(l.harmony_id));
     return set;
   }, [harmonyLogs, today, instrument]);
 
@@ -182,19 +206,19 @@ export default function HarmoniesPage() {
 
   const practiceCount = useMemo(() => {
     const counts: Record<string, number> = {};
-    (harmonyLogs || []).forEach((l: any) => { counts[l.harmonyId] = (counts[l.harmonyId] || 0) + 1; });
+    (harmonyLogs || []).forEach((l: any) => { counts[l.harmony_id] = (counts[l.harmony_id] || 0) + 1; });
     return counts;
   }, [harmonyLogs]);
 
   const maxPractice = Math.max(1, ...Object.values(practiceCount));
 
-  const toggleHarmony = (harmonyId: string) => {
-    if (todayChecked.has(harmonyId)) {
+  const toggleHarmony = (harmony_id: string) => {
+    if (todayChecked.has(harmony_id)) {
       setHarmonyLogs((prev: any[]) => prev.filter((l: any) =>
-        !(l.harmonyId === harmonyId && l.date === today && l.instrument === instrument)
+        !(l.harmony_id === harmony_id && l.date === today && l.instrument === instrument)
       ));
     } else {
-      const log = { harmonyId, date: today, instrument };
+      const log = { harmony_id, date: today, instrument };
       setHarmonyLogs((prev: any[]) => [...prev, log]);
     }
   };
@@ -206,7 +230,7 @@ export default function HarmoniesPage() {
       return;
     }
     const names = checkedToday
-      .map((l: any) => allHarmonies.find((h: any) => h.id === l.harmonyId)?.name)
+      .map((l: any) => allHarmonies.find((h: any) => h.id === l.harmony_id)?.name)
       .filter(Boolean)
       .join(', ');
     const notesText = `Armonías (${checkedToday.length}): ${names}`;

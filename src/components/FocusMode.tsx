@@ -109,7 +109,7 @@ export const FocusMode: React.FC<FocusModeProps> = ({ exercise, images, onClose 
           <div className="relative h-full w-full flex flex-col items-center justify-center gap-4">
              <div className="h-[75vh] w-full flex items-center justify-center">
                 <img 
-                    src={images[currentImgIndex].dataUrl} 
+                    src={(images[currentImgIndex] as any).storage_path || (images[currentImgIndex] as any).dataUrl} 
                     className="max-h-full max-w-full object-contain rounded-xl shadow-[0_0_50px_rgba(255,255,255,0.05)] border border-white/10" 
                     alt="partitura" 
                 />

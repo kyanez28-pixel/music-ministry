@@ -124,21 +124,45 @@ export default function ScalesPage() {
 
   const handleFiles = async (files: File[]) => {
     if (!editingScaleId) return;
-    for (const file of files) {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    
+    for (const file of imageFiles) {
       const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result as string;
-        const newImg = {
-          id: generateId(),
-          scale_id: editingScaleId,
-          storage_path: base64,
-          file_name: file.name
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1200;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height *= maxDim / width;
+              width = maxDim;
+            } else {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.7);
+          
+          const newImg = {
+            id: generateId(),
+            scale_id: editingScaleId,
+            storage_path: base64,
+            file_name: file.name
+          };
+          setAllImages((prev: any[]) => [...prev, newImg]);
         };
-        setAllImages((prev: any[]) => [...prev, newImg]);
+        img.src = e.target?.result as string;
       };
       reader.readAsDataURL(file);
     }
-    toast.success(`${files.length} imagen(es) añadida(s)`);
+    toast.success(`${imageFiles.length} imagen(es) añadida(s)`);
   };
 
   const today = getTodayEC();
@@ -147,7 +171,7 @@ export default function ScalesPage() {
     const set = new Set<string>();
     (scaleLogs || [])
       .filter((l: any) => l.date === today && l.instrument === instrument)
-      .forEach((l: any) => set.add(l.scaleId));
+      .forEach((l: any) => set.add(l.scale_id));
     return set;
   }, [scaleLogs, today, instrument]);
 
@@ -181,19 +205,19 @@ export default function ScalesPage() {
 
   const practiceCount = useMemo(() => {
     const counts: Record<string, number> = {};
-    (scaleLogs || []).forEach((l: any) => { counts[l.scaleId] = (counts[l.scaleId] || 0) + 1; });
+    (scaleLogs || []).forEach((l: any) => { counts[l.scale_id] = (counts[l.scale_id] || 0) + 1; });
     return counts;
   }, [scaleLogs]);
 
   const maxPractice = Math.max(1, ...Object.values(practiceCount));
 
-  const toggleScale = (scaleId: string) => {
-    if (todayChecked.has(scaleId)) {
+  const toggleScale = (scale_id: string) => {
+    if (todayChecked.has(scale_id)) {
       setScaleLogs((prev: any[]) => prev.filter((l: any) =>
-        !(l.scaleId === scaleId && l.date === today && l.instrument === instrument)
+        !(l.scale_id === scale_id && l.date === today && l.instrument === instrument)
       ));
     } else {
-      const log: ScalePracticeLog = { scaleId, date: today, instrument };
+      const log: ScalePracticeLog = { scale_id, date: today, instrument };
       setScaleLogs((prev: any[]) => [...prev, log]);
     }
   };
@@ -202,12 +226,12 @@ export default function ScalesPage() {
     const allChecked = filtered.every((s: any) => todayChecked.has(s.id));
     if (allChecked) {
       setScaleLogs((prev: any[]) => prev.filter((l: any) =>
-        !(filtered.some((s: any) => s.id === l.scaleId) && l.date === today && l.instrument === instrument)
+        !(filtered.some((s: any) => s.id === l.scale_id) && l.date === today && l.instrument === instrument)
       ));
     } else {
       const newLogs: ScalePracticeLog[] = filtered
         .filter((s: any) => !todayChecked.has(s.id))
-        .map((s: any) => ({ scaleId: s.id, date: today, instrument }));
+        .map((s: any) => ({ scale_id: s.id, date: today, instrument }));
       setScaleLogs((prev: any[]) => [...prev, ...newLogs]);
     }
   };
@@ -216,7 +240,7 @@ export default function ScalesPage() {
     const checkedToday = (scaleLogs || []).filter((l: any) => l.date === today && l.instrument === instrument);
     if (checkedToday.length === 0) { toast.error('Marca al menos una escala antes de guardar'); return; }
     const scaleNames = checkedToday
-      .map((l: any) => PREDEFINED_SCALES.find((s: any) => s.id === l.scaleId)?.label)
+      .map((l: any) => PREDEFINED_SCALES.find((s: any) => s.id === l.scale_id)?.label)
       .filter(Boolean).join(', ');
     const notesText = `Escalas (${checkedToday.length}): ${scaleNames}`;
     const existingSession = (sessions || []).find((s: any) =>
@@ -494,20 +518,43 @@ export default function ScalesPage() {
       <Dialog open={!!editingVideoScale} onOpenChange={(open: boolean) => { if (!open) setEditingVideoScale(null); }}>
         <DialogContent className="max-w-md bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2"><Play className="h-4 w-4 text-red-500" /> Video de clase / referencia</DialogTitle>
+            <DialogTitle className="font-display flex items-center gap-2"><Play className="h-4 w-4 text-red-500" /> Video / Referencia</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <p className="text-sm font-semibold text-primary">{editingVideoScale?.name}</p>
             <div>
-              <label className="text-xs text-muted-foreground">Link de YouTube</label>
+              <label className="text-xs text-muted-foreground">Enlace (YouTube, Spotify, Drive, cualquier URL...)</label>
               <Input value={tempVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTempVideoUrl(e.target.value)} placeholder="https://..." />
             </div>
-            {tempVideoUrl && tempVideoUrl.includes('youtu') && (
-              <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/10 mt-2">
-                <iframe src={tempVideoUrl.replace('watch?v=', 'embed/').split('&')[0]} className="w-full h-full border-none" />
-              </div>
+            {tempVideoUrl && (
+              tempVideoUrl.includes('youtu') ? (
+                <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/10 mt-2">
+                  <iframe
+                    src={tempVideoUrl
+                      .replace('watch?v=', 'embed/')
+                      .replace('youtu.be/', 'www.youtube.com/embed/')
+                      .split('&')[0]}
+                    className="w-full h-full border-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <a
+                  href={tempVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-primary hover:underline bg-primary/10 border border-primary/20 rounded-lg p-3 transition-colors"
+                >
+                  <Play className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{tempVideoUrl}</span>
+                </a>
+              )
             )}
             <div className="flex gap-2 justify-end pt-2">
+              {tempVideoUrl && (
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setTempVideoUrl('')}>Quitar</Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => setEditingVideoScale(null)}>Cancelar</Button>
               <Button size="sm" onClick={saveVideo}>Guardar</Button>
             </div>

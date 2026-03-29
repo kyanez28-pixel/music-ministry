@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ExternalLink, Play, X, CheckCircle2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ExternalLink, Play, X, CheckCircle } from 'lucide-react';
 import { AppTooltip } from '@/components/AppTooltip';
 import { useSessions } from '@/hooks/use-music-data';
 import { useInstruments } from '@/hooks/use-instruments';
@@ -62,11 +62,11 @@ export default function SetlistPage() {
 
   const isCurrentWeek = weekOffset === 0;
 
-  const currentSetlist = (setlists || []).find(s => s.weekStart === mondayStr)
+  const currentSetlist = (setlists || []).find(s => s?.weekStart === mondayStr)
     ?? { weekStart: mondayStr, songIds: [], rehearsalNotes: '' };
 
-  const setlistSongs = (currentSetlist.songIds || [])
-    .map(id => (songs || []).find(s => s.id === id))
+  const setlistSongs = (currentSetlist?.songIds || [])
+    .map(id => (songs || []).find(s => s?.id === id))
     .filter(Boolean) as Song[];
 
   // Bug fix: sincronizar rehearsalNotes cuando cambia la semana
@@ -89,22 +89,24 @@ export default function SetlistPage() {
   };
 
   const addToSetlist = (songId: string) => {
-    if (currentSetlist.songIds.includes(songId)) {
+    const listIds = currentSetlist.songIds || [];
+    if (listIds.includes(songId)) {
       toast.error('Esta canción ya está en el setlist');
       return;
     }
-    updateSetlist({ songIds: [...currentSetlist.songIds, songId] });
+    updateSetlist({ songIds: [...listIds, songId] });
     toast.success('Canción agregada al setlist');
   };
 
   const removeFromSetlist = (songId: string) => {
-    updateSetlist({ songIds: currentSetlist.songIds.filter(id => id !== songId) });
+    updateSetlist({ songIds: (currentSetlist.songIds || []).filter(id => id !== songId) });
   };
 
   const moveInSetlist = (index: number, direction: -1 | 1) => {
+    const listIds = currentSetlist.songIds || [];
     const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= currentSetlist.songIds.length) return;
-    const ids = [...currentSetlist.songIds];
+    if (newIndex < 0 || newIndex >= listIds.length) return;
+    const ids = [...listIds];
     [ids[index], ids[newIndex]] = [ids[newIndex], ids[index]];
     updateSetlist({ songIds: ids });
   };
@@ -118,28 +120,11 @@ export default function SetlistPage() {
       : [...(currentSetlist.practicedSongIds || []), song.id];
     
     updateSetlist({ practicedSongIds: newPracticedIds });
-
-    // If marking as practiced, add to history
+    
     if (!isPracticed) {
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-      // Use the song's primary instrument if it's specific, otherwise default to first available instrument
-      const instrument = song.instrument !== 'ambos' ? song.instrument : (instruments[0]?.id || 'piano');
-      
-      const newSession = {
-        id: generateId(),
-        date: today,
-        instrument: instrument,
-        durationMinutes: 10, // Default duration for a quick repaso
-        categories: ['ministerio'] as any[],
-        notes: `Repaso setlist: ${song.title}`,
-        rating: 5,
-        goal: 'Repasar canción del setlist'
-      };
-      
-      setSessions((prev: any) => [...prev, newSession]);
-      toast.success(`Práctica registrada: ${song.title}`);
+      toast.success(`Marcada como repasado: ${song.title}`);
     } else {
-      toast('Canción marcada como no repasada');
+      toast('Canción desmarcada');
     }
   };
 
@@ -153,7 +138,7 @@ export default function SetlistPage() {
       genre: songGenre,
       instrument: songInstrument,
       notes: songNotes.trim(),
-      referenceUrl: songUrl.trim(),
+      reference_url: songUrl.trim(),
     };
     if (editingSongId) {
       setSongs(prev => prev.map(s => s.id === editingSongId ? song : s));
@@ -181,25 +166,25 @@ export default function SetlistPage() {
     setSongGenre(song.genre);
     setSongInstrument(song.instrument);
     setSongNotes(song.notes);
-    setSongUrl(song.referenceUrl);
+    setSongUrl(song.reference_url);
     setShowAddSong(true);
   };
 
   const deleteSong = (id: string) => {
     setSongs(prev => prev.filter(s => s.id !== id));
-    setSetlists(prev => prev.map(sl => ({ ...sl, songIds: sl.songIds.filter(sid => sid !== id) })));
+    setSetlists(prev => prev.map(sl => ({ ...sl, songIds: (sl.songIds || []).filter(sid => sid !== id) })));
     resetSongForm();
     toast.success('Canción eliminada');
   };
 
   const filteredSongs = (songs || [])
-    .filter(s => filterGenre === 'todos' || s.genre === filterGenre)
+    .filter(s => s && (filterGenre === 'todos' || s.genre === filterGenre))
     .filter(s => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
-      return (s.title || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q) || (s.key || '').toLowerCase().includes(q);
+      return (s?.title || '').toLowerCase().includes(q) || (s?.artist || '').toLowerCase().includes(q) || (s?.key || '').toLowerCase().includes(q);
     })
-    .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'es'));
+    .sort((a, b) => (a?.title || '').localeCompare(b?.title || '', 'es'));
 
   const getYouTubeId = (url: string) => {
     const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/);
@@ -274,13 +259,13 @@ export default function SetlistPage() {
                   <span className="font-mono text-xs text-muted-foreground w-5 shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium truncate">{s.title}</p>
-                      {currentSetlist.practicedSongIds?.includes(s.id) && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 fill-emerald-500/10" />
+                      <p className="text-sm font-medium truncate">{s?.title || 'Sin Título'}</p>
+                      {currentSetlist?.practicedSongIds?.includes(s?.id) && (
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500 fill-emerald-500/10" />
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
-                      {s.artist}{s.key ? ` · ${s.key}` : ''} · {INSTRUMENT_EMOJI[s.instrument as keyof typeof INSTRUMENT_EMOJI]}
+                      {s?.artist || '—'}{s?.key ? ` · ${s.key}` : ''} · {INSTRUMENT_EMOJI[(s?.instrument || 'ambos') as keyof typeof INSTRUMENT_EMOJI] || '🎼'}
                     </p>
                   </div>
                   {s.referenceUrl && getYouTubeId(s.referenceUrl) ? (
@@ -300,34 +285,45 @@ export default function SetlistPage() {
                     </a>
                   ) : null}
 
-                  <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <AppTooltip content="Marcar como repasada (registra 10min en historial)" side="left">
+                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                    <AppTooltip 
+                      content={currentSetlist?.practicedSongIds?.includes(s?.id) ? 'Desmarcar' : 'Marcar como ensayada'} 
+                      side="left"
+                    >
                       <button 
                         onClick={() => logSongPractice(s)}
-                        className={`transition-colors ${currentSetlist.practicedSongIds?.includes(s.id) ? 'text-emerald-500' : 'text-muted-foreground hover:text-emerald-500'}`}
+                        className={`transition-all duration-300 flex items-center justify-center p-1.5 rounded-full outline-none focus:ring-2 focus:ring-primary/50 ${
+                          currentSetlist?.practicedSongIds?.includes(s?.id) 
+                            ? 'bg-emerald-500/15 text-emerald-500 scale-105 shadow-[0_0_8px_rgba(16,185,129,0.2)]' 
+                            : 'bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-emerald-400'
+                        }`}
                       >
-                        <CheckCircle2 className="h-4 w-4" />
+                        <CheckCircle className="h-4 w-4" />
                       </button>
                     </AppTooltip>
-                    <AppTooltip content="Subir posición" side="left">
-                      <button onClick={() => moveInSetlist(i, -1)} disabled={i === 0}
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-30">
-                        <ArrowUp className="h-3 w-3" />
-                      </button>
-                    </AppTooltip>
-                    <AppTooltip content="Bajar posición" side="left">
-                      <button onClick={() => moveInSetlist(i, 1)} disabled={i === setlistSongs.length - 1}
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-30">
-                        <ArrowDown className="h-3 w-3" />
+
+                    <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <AppTooltip content="Subir posición" side="left">
+                        <button onClick={() => moveInSetlist(i, -1)} disabled={i === 0}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-30">
+                          <ArrowUp className="h-3 w-3" />
+                        </button>
+                      </AppTooltip>
+                      <AppTooltip content="Bajar posición" side="left">
+                        <button onClick={() => moveInSetlist(i, 1)} disabled={i === setlistSongs.length - 1}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-30">
+                          <ArrowDown className="h-3 w-3" />
+                        </button>
+                      </AppTooltip>
+                    </div>
+
+                    <AppTooltip content="Quitar del setlist" side="left">
+                      <button onClick={() => removeFromSetlist(s.id)}
+                        className="text-muted-foreground hover:text-destructive text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity px-1">
+                        ×
                       </button>
                     </AppTooltip>
                   </div>
-                  <AppTooltip content="Quitar del setlist" side="left">
-                    <button onClick={() => removeFromSetlist(s.id)}
-                      className="text-muted-foreground hover:text-destructive text-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity px-1">
-                      ×
-                    </button>
-                  </AppTooltip>
                 </div>
               ))}
             </div>
@@ -387,7 +383,7 @@ export default function SetlistPage() {
         ) : (
           <div className="space-y-1">
             {filteredSongs.map(s => {
-              const inSetlist = currentSetlist.songIds.includes(s.id);
+              const inSetlist = (currentSetlist.songIds || []).includes(s.id);
               const genre = GENRES.find(g => g.value === s.genre);
               return (
                 <div key={s.id}
@@ -398,13 +394,13 @@ export default function SetlistPage() {
                     <span className="text-sm shrink-0">{genre?.emoji ?? '🎵'}</span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{s.title}</p>
+                        <p className="text-sm font-medium truncate">{s?.title || 'Sin Título'}</p>
                         {inSetlist && (
                           <span className="text-[10px] text-primary font-mono shrink-0">✓ en setlist</span>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
-                        {s.artist || '—'} · {s.key || '?'} · {INSTRUMENT_EMOJI[s.instrument as keyof typeof INSTRUMENT_EMOJI]}
+                        {s?.artist || '—'} · {s?.key || '?'} · {INSTRUMENT_EMOJI[(s?.instrument || 'ambos') as keyof typeof INSTRUMENT_EMOJI] || '🎼'}
                       </p>
                     </div>
                   </div>
@@ -422,7 +418,7 @@ export default function SetlistPage() {
                     size="sm"
                     variant={inSetlist ? 'secondary' : 'ghost'}
                     className="shrink-0 text-xs"
-                    onClick={() => inSetlist ? removeFromSetlist(s.id) : addToSetlist(s.id)}
+                    onClick={() => inSetlist && s ? removeFromSetlist(s.id) : (s && addToSetlist(s.id))}
                   >
                     {inSetlist ? '− Quitar' : '+ Setlist'}
                   </Button>
@@ -509,9 +505,9 @@ export default function SetlistPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">URL de referencia</label>
+              <label className="text-xs text-muted-foreground">Enlace de referencia / Video</label>
               <div className="relative">
-                <Input value={songUrl} onChange={e => setSongUrl(e.target.value)} placeholder="YouTube, Spotify..." className="pr-10" />
+                <Input value={songUrl} onChange={e => setSongUrl(e.target.value)} placeholder="YouTube, Spotify, Drive, cualquier URL..." className="pr-10" />
                 {songUrl && (
                   <button 
                     onClick={() => setSongUrl('')}
@@ -521,6 +517,9 @@ export default function SetlistPage() {
                   </button>
                 )}
               </div>
+              {songUrl && !songUrl.includes('youtu') && (
+                <a href={songUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline truncate block mt-1">🔗 {songUrl}</a>
+              )}
             </div>
             <div className="flex justify-between pt-2 border-t border-border">
               {editingSongId ? (

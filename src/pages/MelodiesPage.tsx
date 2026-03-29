@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import {
-  Plus, FolderPlus, Trash2, Upload, Image, Check,
+  Plus, FolderPlus, Trash2, Upload, Image as ImageIcon, Check,
   Save, X, ChevronDown, ChevronRight, ZoomIn, ArrowLeft,
   ArrowRight, Music2, Play, Maximize2
 } from 'lucide-react';
@@ -189,7 +189,8 @@ export default function MelodiesPage() {
     const melody = {
       id: editingId ?? generateId(),
       folder_id: mFolderId, name: mName.trim(), instrument: mInstrument,
-      status: mStatus, bpm: mBpm, key: mKey, time_signature: mTimeSig,
+      status: mStatus, bpm: mBpm, key: mKey,
+      // time_signature ocluido porque falta en tabla de Supabase:
       description: finalDesc, progress: mProgress
     };
     if (editingId) {
@@ -251,7 +252,31 @@ export default function MelodiesPage() {
   const fileToBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 800; // Limite de dimensiones reducido para aliviar la carga de Base64 Payload
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height *= maxDim / width;
+              width = maxDim;
+            } else {
+              width *= maxDim / height;
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
+        };
+        img.onerror = reject;
+        img.src = reader.result as string;
+      };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
@@ -264,10 +289,9 @@ export default function MelodiesPage() {
     const imageFiles = files.filter(f => f.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
 
-    // Limit file size to 2MB per image
-    const tooBig = imageFiles.filter(f => f.size > 2 * 1024 * 1024);
+    const tooBig = imageFiles.filter(f => f.size > 10 * 1024 * 1024);
     if (tooBig.length > 0) {
-      toast.error(`${tooBig.length} imagen(es) superan 2MB. Usa imágenes más pequeñas.`);
+      toast.error(`${tooBig.length} imagen(es) superan 10MB. Usa imágenes con menos peso.`);
       return;
     }
 
@@ -657,7 +681,7 @@ export default function MelodiesPage() {
             {/* Images */}
             <div>
               <label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
-                <Image className="h-3 w-3" />
+                <ImageIcon className="h-3 w-3" />
                 Imágenes para repasar
                 <span className="text-muted-foreground/60 ml-1">(máx. 2MB por imagen)</span>
               </label>
