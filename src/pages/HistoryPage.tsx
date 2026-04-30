@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useSessions } from '@/hooks/use-music-data';
-import { formatDate, formatDurationLong, formatDuration } from '@/lib/music-utils';
+import { formatDate, formatDurationLong, formatDuration, getMonday } from '@/lib/music-utils';
 import { CATEGORY_LABELS, ALL_CATEGORIES, type PracticeCategory, type Instrument } from '@/types/music';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { CalendarDays, BarChart3, Music, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, BarChart3, Music, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import { useInstruments } from '@/hooks/use-instruments';
 import { AppTooltip } from '@/components/AppTooltip';
 import type { InstrumentDef } from '@/types/music';
@@ -26,6 +26,9 @@ export default function HistoryPage() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
+
+  // ─── Weekly stats navigation ───
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, -1 = last week, etc.
   const { instruments } = useInstruments();
 
   const filtered = (sessions || [])
@@ -103,6 +106,59 @@ export default function HistoryPage() {
     const m = String(calendarMonth.getMonth() + 1).padStart(2, '0');
     return `${y}-${m}-${String(day).padStart(2, '0')}`;
   };
+
+  // ─── Weekly stats ───
+  const weeklyStats = useMemo(() => {
+    // Calculate the monday of the target week
+    const now = new Date();
+    const baseMonday = getMonday(now);
+    baseMonday.setDate(baseMonday.getDate() + weekOffset * 7);
+
+    const days: { dateStr: string; label: string; shortLabel: string; minutes: number; sessions: number; isToday: boolean }[] = [];
+    const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(baseMonday);
+      d.setDate(d.getDate() + i);
+      const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+      const daySessions = (sessions || []).filter((s: any) => s.date === dateStr);
+      const mins = daySessions.reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
+      days.push({
+        dateStr,
+        label: d.toLocaleDateString('es-EC', { weekday: 'long', timeZone: 'America/Guayaquil' }),
+        shortLabel: d.toLocaleDateString('es-EC', { weekday: 'short', timeZone: 'America/Guayaquil' }).slice(0, 2),
+        minutes: mins,
+        sessions: daySessions.length,
+        isToday: dateStr === todayStr,
+      });
+    }
+
+    const totalMinutes = days.reduce((s, d) => s + d.minutes, 0);
+    const totalSessions = days.reduce((s, d) => s + d.sessions, 0);
+    const activeDays = days.filter(d => d.minutes > 0).length;
+    const maxDayMins = Math.max(...days.map(d => d.minutes), 1);
+
+    // Category breakdown for the week
+    const weekDates = new Set(days.map(d => d.dateStr));
+    const weekSessions = (sessions || []).filter((s: any) => weekDates.has(s.date));
+    const catMap: Record<string, number> = {};
+    weekSessions.forEach((s: any) => {
+      const perCat = s.durationMinutes / (s.categories.length || 1);
+      s.categories.forEach((c: string) => { catMap[c] = (catMap[c] || 0) + perCat; });
+    });
+    const topCats = Object.entries(catMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4) as [string, number][];
+
+    // Label for the week range
+    const startLabel = new Date(baseMonday).toLocaleDateString('es-EC', { day: 'numeric', month: 'short', timeZone: 'America/Guayaquil' });
+    const endDate = new Date(baseMonday);
+    endDate.setDate(endDate.getDate() + 6);
+    const endLabel = endDate.toLocaleDateString('es-EC', { day: 'numeric', month: 'short', timeZone: 'America/Guayaquil' });
+    const isCurrentWeek = weekOffset === 0;
+
+    return { days, totalMinutes, totalSessions, activeDays, maxDayMins, topCats, startLabel, endLabel, isCurrentWeek };
+  }, [sessions, weekOffset]);
 
   // ─── Stats ───
   const stats = useMemo(() => {
@@ -192,39 +248,164 @@ export default function HistoryPage() {
 
       {/* ═══ LIST VIEW ═══ */}
       {viewMode === 'list' && (
-        filtered.length === 0 ? (
-          <div className="stat-card py-12 text-center">
-            <p className="text-muted-foreground">No hay sesiones que mostrar</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filtered.map((s: any) => (
-              <AppTooltip key={s.id} content="Haz clic para editar los detalles de esta sesión.">
-                <div onClick={() => openEdit(s.id)}
-                  className="stat-card flex items-center justify-between cursor-pointer hover:border-primary/30">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="text-xl shrink-0">
-                      {instruments.find((i: InstrumentDef) => i.id === s.instrument)?.emoji || '🎼'}
+        <div className="space-y-4">
+
+          {/* ── Weekly Summary Card ── */}
+          <div className="stat-card space-y-4">
+            {/* Header row */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <h3 className="section-title text-sm">
+                  {weeklyStats.isCurrentWeek ? 'Esta semana' : `Semana del ${weeklyStats.startLabel}`}
+                </h3>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {weeklyStats.startLabel} – {weeklyStats.endLabel}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setWeekOffset(o => o - 1)}
+                  className="p-1.5 rounded-md hover:bg-secondary transition-colors"
+                  title="Semana anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                {!weeklyStats.isCurrentWeek && (
+                  <button
+                    onClick={() => setWeekOffset(0)}
+                    className="text-[10px] text-primary font-medium px-2 py-1 rounded hover:bg-primary/10 transition-colors"
+                  >
+                    Hoy
+                  </button>
+                )}
+                <button
+                  onClick={() => setWeekOffset(o => Math.min(0, o + 1))}
+                  disabled={weeklyStats.isCurrentWeek}
+                  className="p-1.5 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Semana siguiente"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Summary pills */}
+            <div className="flex flex-wrap gap-3">
+              <div className="flex items-baseline gap-1">
+                <span className="font-mono text-2xl font-bold text-foreground">
+                  {formatDurationLong(weeklyStats.totalMinutes)}
+                </span>
+                <span className="text-xs text-muted-foreground">practicados</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
+                <span>
+                  <span className="font-mono font-semibold text-foreground">{weeklyStats.totalSessions}</span> sesiones
+                </span>
+                <span>
+                  <span className="font-mono font-semibold text-foreground">{weeklyStats.activeDays}</span> días activos
+                </span>
+              </div>
+            </div>
+
+            {/* Day bars */}
+            <div className="flex items-end gap-1 h-20">
+              {weeklyStats.days.map((d) => (
+                <div key={d.dateStr} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
+                  {d.minutes > 0 && (
+                    <span className="text-[9px] font-mono text-muted-foreground leading-none">
+                      {formatDuration(d.minutes)}
                     </span>
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm">{formatDate(s.date)}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {s.categories.map(c => CATEGORY_LABELS[c]).join(', ')}
-                      </p>
-                      {s.notes && (
-                        <p className="text-xs text-muted-foreground/60 mt-0.5 line-clamp-1">{s.notes}</p>
-                      )}
+                  )}
+                  <div
+                    className={`w-full rounded-t-sm transition-all duration-500 ${
+                      d.isToday ? 'ring-1 ring-primary ring-offset-1 ring-offset-card' : ''
+                    }`}
+                    style={{
+                      height: `${Math.max((d.minutes / weeklyStats.maxDayMins) * 60, d.minutes > 0 ? 6 : 2)}px`,
+                      background: d.minutes > 0
+                        ? `hsl(42 60% 55% / ${0.35 + (d.minutes / weeklyStats.maxDayMins) * 0.65})`
+                        : 'hsl(var(--secondary))',
+                      minHeight: '2px',
+                    }}
+                  />
+                  <span
+                    className={`text-[10px] font-mono capitalize leading-none ${
+                      d.isToday ? 'text-primary font-bold' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {d.shortLabel}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Top categories */}
+            {weeklyStats.topCats.length > 0 && (
+              <div className="space-y-1.5 pt-1 border-t border-white/5">
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold">Categorías</p>
+                <div className="space-y-1.5">
+                  {weeklyStats.topCats.map(([cat, mins]) => {
+                    const maxMins = weeklyStats.topCats[0]?.[1] || 1;
+                    return (
+                      <div key={cat}>
+                        <div className="flex justify-between text-xs mb-0.5">
+                          <span className="text-foreground/80">{CATEGORY_LABELS[cat as PracticeCategory] ?? cat}</span>
+                          <span className="font-mono text-muted-foreground">{formatDurationLong(Math.round(mins))}</span>
+                        </div>
+                        <div className="h-1 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary/70 rounded-full transition-all duration-500"
+                            style={{ width: `${(mins / maxMins) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {weeklyStats.totalMinutes === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-2 italic">Sin sesiones esta semana</p>
+            )}
+          </div>
+
+          {/* ── Session list ── */}
+          {filtered.length === 0 ? (
+            <div className="stat-card py-12 text-center">
+              <p className="text-muted-foreground">No hay sesiones que mostrar</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((s: any) => (
+                <AppTooltip key={s.id} content="Haz clic para editar los detalles de esta sesión.">
+                  <div onClick={() => openEdit(s.id)}
+                    className="stat-card flex items-center justify-between cursor-pointer hover:border-primary/30">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="text-xl shrink-0">
+                        {instruments.find((i: InstrumentDef) => i.id === s.instrument)?.emoji || '🎼'}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">{formatDate(s.date)}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {s.categories.map((c: string) => CATEGORY_LABELS[c as PracticeCategory]).join(', ')}
+                        </p>
+                        {s.notes && (
+                          <p className="text-xs text-muted-foreground/60 mt-0.5 line-clamp-1">{s.notes}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-2">
+                      <p className="font-mono text-sm">{formatDurationLong(s.durationMinutes)}</p>
+                      <p className="text-xs text-amber-400">{'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}</p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0 ml-2">
-                    <p className="font-mono text-sm">{formatDurationLong(s.durationMinutes)}</p>
-                    <p className="text-xs text-amber-400">{'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}</p>
-                  </div>
-                </div>
-              </AppTooltip>
-            ))}
-          </div>
-        )
+                </AppTooltip>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ═══ CALENDAR VIEW ═══ */}
