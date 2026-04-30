@@ -54,7 +54,7 @@ export default function ScalesPage() {
 
   const openVideoEdit = (e: React.MouseEvent, scale: any) => {
     e.stopPropagation(); e.preventDefault();
-    setEditingVideoScale({ id: scale.id, name: scale.labelEN || scale.label });
+    setEditingVideoScale({ id: scale.id, name: scale.label });
     const parsedUrls = scale.video_url ? scale.video_url.split('\n').filter(Boolean) : [''];
     setTempVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
   };
@@ -290,7 +290,7 @@ export default function ScalesPage() {
     const count = practiceCount[scale.id] ?? 0;
     const progressPct = Math.min(100, (count / maxPractice) * 100);
     const theory = SCALE_THEORY[scale.scaleType];
-    const displayLabel = scale.labelEN || scale.label;
+    const displayLabel = scale.label;
     const urls = scale.video_url ? scale.video_url.split('\n').filter(Boolean) : [];
     const hasVideo = urls.length > 0;
     const isPlaying = playingScaleId === scale.id;
@@ -312,7 +312,7 @@ export default function ScalesPage() {
                 {theory && (
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
                     style={{ background: theory.color+'22', color: theory.color }}>
-                    {theory.labelEN}
+                    {theory.label}
                   </span>
                 )}
               </div>

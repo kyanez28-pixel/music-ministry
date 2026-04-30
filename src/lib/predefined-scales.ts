@@ -45,7 +45,7 @@ export const PREDEFINED_SCALES: PredefinedScale[] = NOTES.flatMap((note, idx) =>
     note,
     noteEN: CHROMATIC_DISPLAY[idx],
     scaleType: type.key,
-    label: `${note} ${type.label}`,
+    label: `${CHROMATIC_DISPLAY[idx]} ${type.label}`,
     labelEN: `${CHROMATIC_DISPLAY[idx]} ${type.labelEN}`,
   }))
 );
@@ -54,79 +54,79 @@ export const PREDEFINED_SCALES: PredefinedScale[] = NOTES.flatMap((note, idx) =>
 
 export const SCALE_THEORY: Record<string, {
   steps: string[]; semitones: number[]; degrees: string[];
-  description: string; color: string; labelEN: string;
+  description: string; color: string; label: string;
 }> = {
   mayor: {
     steps: ['T','T','S','T','T','T','S'], semitones: [2,2,1,2,2,2,1],
     degrees: ['1','2','3','4','5','6','7'],
-    description: 'Foundation of Western music. Bright, happy, uplifting. Used across all genres.',
-    color: '#4ade80', labelEN: 'Major',
+    description: 'Base de la música occidental. Brillante, feliz, inspiradora. Usada en todos los géneros.',
+    color: '#4ade80', label: 'Mayor',
   },
   menor_natural: {
     steps: ['T','S','T','T','S','T','T'], semitones: [2,1,2,2,1,2,2],
     degrees: ['1','2','♭3','4','5','♭6','♭7'],
-    description: 'Dark, emotional, melancholic. The relative minor. Core of classical, rock and pop.',
-    color: '#60a5fa', labelEN: 'Natural Minor',
+    description: 'Oscura, emocional, melancólica. La menor relativa. Base del clásico, rock y pop.',
+    color: '#60a5fa', label: 'Menor Natural',
   },
   menor_armonica: {
     steps: ['T','S','T','T','S','A','S'], semitones: [2,1,2,2,1,3,1],
     degrees: ['1','2','♭3','4','5','♭6','7'],
-    description: 'Raised 7th creates dramatic tension. Used in classical, flamenco and metal.',
-    color: '#a78bfa', labelEN: 'Harmonic Minor',
+    description: 'La séptima mayor crea tensión dramática. Usada en clásico, flamenco y metal.',
+    color: '#a78bfa', label: 'Menor Armónica',
   },
   menor_melodica: {
     steps: ['T','S','T','T','T','T','S'], semitones: [2,1,2,2,2,2,1],
     degrees: ['1','2','♭3','4','5','6','7'],
-    description: 'Jazz minor: dark yet smooth. Foundation of modern jazz improvisation.',
-    color: '#e879f9', labelEN: 'Melodic Minor',
+    description: 'Menor de jazz: oscura pero suave. Base de la improvisación en el jazz moderno.',
+    color: '#e879f9', label: 'Menor Melódica',
   },
   pentatonica_mayor: {
     steps: ['T','T','A','T','A'], semitones: [2,2,3,2,3],
     degrees: ['1','2','3','5','6'],
-    description: '5 notes, no tension. Extremely versatile across folk, gospel, country and pop.',
-    color: '#fb923c', labelEN: 'Major Pentatonic',
+    description: '5 notas, sin tensión. Extremadamente versátil en folk, gospel, country y pop.',
+    color: '#fb923c', label: 'Pentatónica Mayor',
   },
   pentatonica_menor: {
     steps: ['A','T','T','A','T'], semitones: [3,2,2,3,2],
     degrees: ['1','♭3','4','5','♭7'],
-    description: 'Go-to for blues and rock solos. Easy to learn, powerful to express.',
-    color: '#f472b6', labelEN: 'Minor Pentatonic',
+    description: 'Ideal para solos de blues y rock. Fácil de aprender, poderosa para expresarse.',
+    color: '#f472b6', label: 'Pentatónica Menor',
   },
   blues: {
     steps: ['A','T','S','S','A','T'], semitones: [3,2,1,1,3,2],
     degrees: ['1','♭3','4','♭5','5','♭7'],
-    description: 'Minor pentatonic + blue note (♭5). Raw, expressive tension. Essential for blues.',
-    color: '#34d399', labelEN: 'Blues',
+    description: 'Pentatónica menor + nota blue (♭5). Tensión cruda y expresiva. Esencial para blues.',
+    color: '#34d399', label: 'Blues',
   },
   dorica: {
     steps: ['T','S','T','T','T','S','T'], semitones: [2,1,2,2,2,1,2],
     degrees: ['1','2','♭3','4','5','6','♭7'],
-    description: 'Minor with natural 6th. Warm yet dark. Foundation of jazz and funk.',
-    color: '#fbbf24', labelEN: 'Dorian',
+    description: 'Modo menor con sexta mayor. Dulce pero misteriosa. Común en funk y jazz modal.',
+    color: '#fbbf24', label: 'Dórica',
   },
   frigia: {
     steps: ['S','T','T','T','S','T','T'], semitones: [1,2,2,2,1,2,2],
     degrees: ['1','♭2','♭3','4','5','♭6','♭7'],
-    description: 'Flamenco and metal favorite. The ♭2 gives a Spanish/Arabic flavor.',
-    color: '#f87171', labelEN: 'Phrygian',
+    description: 'Modo menor con segunda menor. Tensión oscura y exótica. Sonido característico del metal y flamenco.',
+    color: '#f87171', label: 'Frigia',
   },
   lidia: {
     steps: ['T','T','T','S','T','T','S'], semitones: [2,2,2,1,2,2,1],
     degrees: ['1','2','3','#4','5','6','7'],
-    description: 'Major with raised 4th. Dreamy, floating quality. Loved by film composers.',
-    color: '#67e8f9', labelEN: 'Lydian',
+    description: 'Modo mayor con cuarta aumentada. Soñadora, mágica y flotante. Usada en cine y jazz.',
+    color: '#67e8f9', label: 'Lidia',
   },
   mixolidia: {
     steps: ['T','T','S','T','T','S','T'], semitones: [2,2,1,2,2,1,2],
     degrees: ['1','2','3','4','5','6','♭7'],
-    description: 'Major with flat 7th. Blues-rock workhorse. Core of gospel and classic rock.',
-    color: '#d4a843', labelEN: 'Mixolydian',
+    description: 'Modo mayor con séptima menor. Bluesy y rockera. Fundamental para dominantes.',
+    color: '#d4a843', label: 'Mixolidia',
   },
   locria: {
     steps: ['S','T','T','S','T','T','T'], semitones: [1,2,2,1,2,2,2],
     degrees: ['1','♭2','♭3','4','♭5','♭6','♭7'],
-    description: 'Most unstable mode. Diminished quality. Theoretical importance exceeds practical use.',
-    color: '#9ca3af', labelEN: 'Locrian',
+    description: 'El modo más inestable y oscuro. Tensión pura, rara vez usada como escala principal.',
+    color: '#9ca3af', label: 'Locria',
   },
 };
 
