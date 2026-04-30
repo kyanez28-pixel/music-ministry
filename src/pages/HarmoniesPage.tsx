@@ -345,38 +345,36 @@ export default function HarmoniesPage() {
         </label>
 
         {isPlaying && hasVideo && (
-          <div className="mt-3 rounded-lg overflow-hidden border border-white/10 bg-black animate-in slide-in-from-top-2">
-            <div className="flex flex-col gap-4 h-full overflow-y-auto custom-scrollbar max-h-[60vh] p-2">
-              {urls.map((url: string, idx: number) => {
-                const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
-                const prog = progressions[idx];
-                return (
-                  <div key={idx} className="flex flex-col rounded-lg overflow-hidden border border-white/10 bg-black/50">
-                    {ytId ? (
-                      <div className="w-full aspect-video flex-shrink-0">
-                        <iframe
-                          src={`https://www.youtube.com/embed/${ytId}${urls.length === 1 ? '?autoplay=1' : ''}`}
-                          className="w-full h-full border-none"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
-                    ) : (
-                      <a href={url} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30">
-                        <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
-                      </a>
-                    )}
-                    {prog && prog.trim() !== '' && (
-                      <div className="p-3 bg-primary/5 border-t border-white/5">
-                        <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Acordes</p>
-                        <p className="font-mono text-base text-foreground/90 font-semibold">{prog}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          <div className="mt-3 flex flex-col gap-4 animate-in slide-in-from-top-2">
+            {urls.map((url: string, idx: number) => {
+              const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
+              const prog = progressions[idx];
+              return (
+                <div key={idx} className="flex flex-col rounded-lg border border-white/10 bg-black overflow-hidden">
+                  {ytId ? (
+                    <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                      <iframe
+                        src={`https://www.youtube.com/embed/${ytId}${urls.length === 1 ? '?autoplay=1' : ''}`}
+                        className="absolute inset-0 w-full h-full border-none"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : (
+                    <a href={url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30">
+                      <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
+                    </a>
+                  )}
+                  {prog && prog.trim() !== '' && (
+                    <div className="p-3 bg-primary/5 border-t border-white/10">
+                      <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Acordes</p>
+                      <p className="font-mono text-base text-foreground/90 font-semibold">{prog}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
