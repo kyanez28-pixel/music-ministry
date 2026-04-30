@@ -52,6 +52,7 @@ export default function HarmoniesPage() {
   const [editingVideoHarmony, setEditingVideoHarmony] = useState<{id: string, name: string} | null>(null);
   const [tempVideoUrls, setTempVideoUrls] = useState<string[]>(['']);
   const [tempProgressions, setTempProgressions] = useState<string[]>(['']);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [playingHarmonyId, setPlayingHarmonyId] = useState<string | null>(null);
 
   const openVideoEdit = (e: React.MouseEvent, harmony: any) => {
@@ -609,10 +610,38 @@ export default function HarmoniesPage() {
             <p className="text-sm font-semibold text-primary">{editingVideoHarmony?.name}</p>
             <div>
               <label className="text-xs text-muted-foreground mb-2 block">Enlaces (YouTube, Spotify, Drive...)</label>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1 custom-scrollbar">
                 {tempVideoUrls.map((url, i) => (
-                  <div key={i} className="flex flex-col gap-2 p-3 bg-white/5 rounded-lg border border-white/5 relative">
-                    <div className="flex gap-2">
+                  <div
+                    key={i}
+                    draggable
+                    onDragStart={() => setDragIndex(i)}
+                    onDragOver={(e) => { e.preventDefault(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragIndex === null || dragIndex === i) return;
+                      const newUrls = [...tempVideoUrls];
+                      const newProgs = [...tempProgressions];
+                      const [movedUrl] = newUrls.splice(dragIndex, 1);
+                      const [movedProg] = newProgs.splice(dragIndex, 1);
+                      newUrls.splice(i, 0, movedUrl);
+                      newProgs.splice(i, 0, movedProg);
+                      setTempVideoUrls(newUrls);
+                      setTempProgressions(newProgs);
+                      setDragIndex(null);
+                    }}
+                    onDragEnd={() => setDragIndex(null)}
+                    className={`flex flex-col gap-2 p-3 bg-white/5 rounded-lg border border-white/5 relative cursor-default transition-opacity ${
+                      dragIndex === i ? 'opacity-40 border-primary/50' : ''
+                    }`}
+                  >
+                    <div className="flex gap-2 items-center">
+                      <span
+                        className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground px-1 select-none"
+                        title="Arrastrar para reordenar"
+                      >
+                        ⠿
+                      </span>
                       <Input value={url} onChange={(e) => {
                         const newUrls = [...tempVideoUrls];
                         newUrls[i] = e.target.value;
