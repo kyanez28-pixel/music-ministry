@@ -129,8 +129,11 @@ export default function ScalesPage() {
 
   const saveVideo = () => {
     if (editingVideoScale) {
-      const finalUrlStr = tempVideoUrls.filter(u => u.trim() !== '').join('\n');
-      const finalProgStr = tempProgressions.slice(0, tempVideoUrls.filter(u => u.trim() !== '').length).join('\n');
+      // Zip each URL with its corresponding progression, then filter out empty URLs
+      const pairs = tempVideoUrls.map((url, i) => ({ url, prog: tempProgressions[i] || '' }))
+        .filter(p => p.url.trim() !== '');
+      const finalUrlStr = pairs.map(p => p.url).join('\n');
+      const finalProgStr = pairs.map(p => p.prog).join('\n');
       
       setScaleVideos((prev: Record<string,string>) => ({
         ...prev,

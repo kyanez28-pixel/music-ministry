@@ -124,9 +124,11 @@ export default function HarmoniesPage() {
 
   const saveVideo = () => {
     if (editingVideoHarmony) {
-      const filteredUrls = tempVideoUrls.filter(u => u.trim() !== '');
-      const finalUrlStr = filteredUrls.join('\n');
-      const finalProgStr = tempProgressions.slice(0, filteredUrls.length).join('\n');
+      // Zip each URL with its corresponding progression, then filter out empty URLs
+      const pairs = tempVideoUrls.map((url, i) => ({ url, prog: tempProgressions[i] || '' }))
+        .filter(p => p.url.trim() !== '');
+      const finalUrlStr = pairs.map(p => p.url).join('\n');
+      const finalProgStr = pairs.map(p => p.prog).join('\n');
       setHarmonyProgressions((prev: Record<string,string>) => ({ ...prev, [editingVideoHarmony.id]: finalProgStr }));
       setCustomHarmonies((prev: any[]) => prev.map((h: any) => 
         h.id === editingVideoHarmony.id ? { ...h, video_url: finalUrlStr } : h
