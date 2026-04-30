@@ -286,7 +286,11 @@ export default function HarmoniesPage() {
                   <ImageIcon className="h-3 w-3 text-primary/60" />
                 )}
                 <button onClick={(e: React.MouseEvent) => openVideoEdit(e, harmony)}
-                  className={`hover:text-primary transition-colors ${harmony.video_url ? 'text-red-500' : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'}`}>
+                  className={`hover:text-primary transition-colors ${
+                    harmony.video_url
+                      ? 'text-red-500'
+                      : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'
+                  }`}>
                   <Play className="h-3.5 w-3.5" />
                 </button>
               </div>

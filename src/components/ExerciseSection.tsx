@@ -99,6 +99,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   const [viewerImages, setViewerImages] = useState<ExerciseImage[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -323,14 +324,43 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
           </div>
         </div>
 
-        <div className="relative aspect-video rounded-md overflow-hidden bg-secondary/50 mb-3 border border-white/5 cursor-pointer"
-          onClick={() => imgs.length > 0 ? (setViewerImages(imgs), setViewerIndex(0)) : ex.video_url ? window.open(ex.video_url, '_blank') : openEdit(ex)}>
-          {imgs.length > 0 ? (
-            <img src={imgs[0].storage_path} className="w-full h-full object-cover" alt="partitura" />
+        <div className="relative aspect-video rounded-md overflow-hidden bg-secondary/50 mb-3 border border-white/5 cursor-pointer">
+          {playingVideoId === ex.id && ex.video_url ? (
+            // ── Inline YouTube embed ──
+            (() => {
+              const ytId = getYouTubeId(ex.video_url);
+              return ytId ? (
+                <iframe
+                  src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
+                  className="w-full h-full border-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <a href={ex.video_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary underline">
+                    <Play className="h-4 w-4" /> Abrir video
+                  </a>
+                </div>
+              );
+            })()
+          ) : imgs.length > 0 ? (
+            <div onClick={() => imgs.length > 0 ? (setViewerImages(imgs), setViewerIndex(0)) : undefined}>
+              <img src={imgs[0].storage_path} className="w-full h-full object-cover" alt="partitura" />
+            </div>
           ) : ex.video_url ? (
-            <YouTubeThumb url={ex.video_url} />
+            // ── YouTube thumbnail with play overlay ──
+            <div className="relative w-full h-full" onClick={() => setPlayingVideoId(ex.id)}>
+              <YouTubeThumb url={ex.video_url} />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/10 transition-colors">
+                <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
+                  <Play className="h-5 w-5 text-white fill-white ml-0.5" />
+                </div>
+              </div>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full opacity-20">
+            <div className="flex flex-col items-center justify-center h-full opacity-20" onClick={() => openEdit(ex)}>
               <Music2 className="h-8 w-8" />
             </div>
           )}
@@ -347,11 +377,16 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
               {practicedToday ? '✓ Practicado' : '+ Hoy'}
             </button>
             {ex.video_url && (
-              <button 
-                onClick={() => window.open(ex.video_url, '_blank')}
-                className="text-[10px] px-2 py-1 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all flex items-center gap-1"
+              <button
+                onClick={() => setPlayingVideoId(playingVideoId === ex.id ? null : ex.id)}
+                className={`text-[10px] px-2 py-1 rounded-full transition-all flex items-center gap-1 ${
+                  playingVideoId === ex.id
+                    ? 'bg-red-500/20 text-red-400'
+                    : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                }`}
               >
-                <Play className="h-2.5 w-2.5 fill-current" /> Video
+                <Play className="h-2.5 w-2.5 fill-current" />
+                {playingVideoId === ex.id ? 'Cerrar' : 'Ver video'}
               </button>
             )}
           </div>
