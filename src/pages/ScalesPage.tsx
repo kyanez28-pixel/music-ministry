@@ -286,12 +286,12 @@ export default function ScalesPage() {
     );
     if (existingSession) {
       setSessions((prev: any[]) => prev.map((s: any) =>
-        s.id === existingSession.id ? { ...s, notes: notesText, durationMinutes: Math.max(s.durationMinutes, checkedToday.length * 2) } : s
+        s.id === existingSession.id ? { ...s, notes: notesText } : s
       ));
     } else {
       setSessions((prev: any[]) => [...prev, {
         id: generateId(), date: today, instrument,
-        durationMinutes: checkedToday.length * 2,
+        durationMinutes: 0,
         categories: ['escalas' as const], notes: notesText, rating: 3, goal: '',
       }]);
     }
