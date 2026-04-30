@@ -51,15 +51,18 @@ export default function HarmoniesPage() {
   // Video attachments
   const [editingVideoHarmony, setEditingVideoHarmony] = useState<{id: string, name: string} | null>(null);
   const [tempVideoUrls, setTempVideoUrls] = useState<string[]>(['']);
-  const [tempProgression, setTempProgression] = useState<string>('');
+  const [tempProgressions, setTempProgressions] = useState<string[]>(['']);
   const [playingHarmonyId, setPlayingHarmonyId] = useState<string | null>(null);
 
   const openVideoEdit = (e: React.MouseEvent, harmony: any) => {
     e.stopPropagation(); e.preventDefault();
     setEditingVideoHarmony({ id: harmony.id, name: harmony.name });
-    const parsedUrls = harmony.video_url ? harmony.video_url.split('\n').filter(Boolean) : [''];
+    const parsedUrls = harmony.video_url ? harmony.video_url.split('\n') : [''];
     setTempVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
-    setTempProgression(harmonyProgressions[harmony.id] || '');
+    const progStr = harmonyProgressions[harmony.id] || '';
+    const parsedProgs = progStr ? progStr.split('\n') : [''];
+    const progs = parsedUrls.map((_, i) => parsedProgs[i] || '');
+    setTempProgressions(progs.length > 0 ? progs : ['']);
   };
 
   const resetFolderForm = () => {
@@ -121,15 +124,17 @@ export default function HarmoniesPage() {
 
   const saveVideo = () => {
     if (editingVideoHarmony) {
-      const finalUrlStr = tempVideoUrls.filter(u => u.trim() !== '').join('\n');
-      setHarmonyProgressions((prev: Record<string,string>) => ({ ...prev, [editingVideoHarmony.id]: tempProgression }));
+      const filteredUrls = tempVideoUrls.filter(u => u.trim() !== '');
+      const finalUrlStr = filteredUrls.join('\n');
+      const finalProgStr = tempProgressions.slice(0, filteredUrls.length).join('\n');
+      setHarmonyProgressions((prev: Record<string,string>) => ({ ...prev, [editingVideoHarmony.id]: finalProgStr }));
       setCustomHarmonies((prev: any[]) => prev.map((h: any) => 
         h.id === editingVideoHarmony.id ? { ...h, video_url: finalUrlStr } : h
       ));
       toast.success('Información guardada');
     }
     setEditingVideoHarmony(null);
-    setTempProgression('');
+    setTempProgressions(['']);
   };
 
   const handleFiles = async (files: File[]) => {
@@ -277,8 +282,9 @@ export default function HarmoniesPage() {
     const count = practiceCount[harmony.id] ?? 0;
     const progressPct = Math.min(100, (count / maxPractice) * 100);
     const urls = harmony.video_url ? harmony.video_url.split('\n').filter(Boolean) : [];
-    const progression = harmonyProgressions[harmony.id];
-    const hasVideo = urls.length > 0 || !!progression;
+    const progressionStr = harmonyProgressions[harmony.id] || '';
+    const progressions = progressionStr ? progressionStr.split('\n') : [];
+    const hasVideo = urls.length > 0 || !!progressionStr;
     const isPlaying = playingHarmonyId === harmony.id;
 
     return (
@@ -338,32 +344,37 @@ export default function HarmoniesPage() {
 
         {isPlaying && hasVideo && (
           <div className="mt-3 rounded-lg overflow-hidden border border-white/10 bg-black animate-in slide-in-from-top-2">
-            <div className="flex flex-col gap-2 h-full overflow-y-auto custom-scrollbar max-h-[60vh]">
+            <div className="flex flex-col gap-4 h-full overflow-y-auto custom-scrollbar max-h-[60vh] p-2">
               {urls.map((url: string, idx: number) => {
                 const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
-                return ytId ? (
-                  <div key={idx} className="w-full aspect-video flex-shrink-0">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${ytId}${urls.length === 1 ? '?autoplay=1' : ''}`}
-                      className="w-full h-full border-none"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
+                const prog = progressions[idx];
+                return (
+                  <div key={idx} className="flex flex-col rounded-lg overflow-hidden border border-white/10 bg-black/50">
+                    {ytId ? (
+                      <div className="w-full aspect-video flex-shrink-0">
+                        <iframe
+                          src={`https://www.youtube.com/embed/${ytId}${urls.length === 1 ? '?autoplay=1' : ''}`}
+                          className="w-full h-full border-none"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    ) : (
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30">
+                        <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
+                      </a>
+                    )}
+                    {prog && prog.trim() !== '' && (
+                      <div className="p-3 bg-primary/5 border-t border-white/5">
+                        <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Acordes</p>
+                        <p className="font-mono text-base text-foreground/90 font-semibold">{prog}</p>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30">
-                    <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
-                  </a>
                 );
               })}
             </div>
-            {progression && (
-              <div className="p-4 bg-primary/5 border-t border-white/5">
-                <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Acordes</p>
-                <p className="font-mono text-base text-foreground/90 font-semibold">{progression}</p>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -600,28 +611,40 @@ export default function HarmoniesPage() {
               <label className="text-xs text-muted-foreground mb-2 block">Enlaces (YouTube, Spotify, Drive...)</label>
               <div className="space-y-2">
                 {tempVideoUrls.map((url, i) => (
-                  <div key={i} className="flex gap-2">
-                    <Input value={url} onChange={(e) => {
-                      const newUrls = [...tempVideoUrls];
-                      newUrls[i] = e.target.value;
-                      setTempVideoUrls(newUrls);
-                    }} placeholder="https://..." className="flex-1" />
-                    {tempVideoUrls.length > 1 && (
-                      <Button variant="outline" size="icon" onClick={() => {
-                        setTempVideoUrls(tempVideoUrls.filter((_, idx) => idx !== i));
-                      }} className="shrink-0 text-muted-foreground hover:text-destructive">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div key={i} className="flex flex-col gap-2 p-3 bg-white/5 rounded-lg border border-white/5 relative">
+                    <div className="flex gap-2">
+                      <Input value={url} onChange={(e) => {
+                        const newUrls = [...tempVideoUrls];
+                        newUrls[i] = e.target.value;
+                        setTempVideoUrls(newUrls);
+                      }} placeholder="Enlace (YouTube, Spotify...)" className="flex-1" />
+                      {tempVideoUrls.length > 1 && (
+                        <Button variant="outline" size="icon" onClick={() => {
+                          setTempVideoUrls(tempVideoUrls.filter((_, idx) => idx !== i));
+                          setTempProgressions(tempProgressions.filter((_, idx) => idx !== i));
+                        }} className="shrink-0 text-muted-foreground hover:text-destructive">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <ProgressionBuilder 
+                      value={tempProgressions[i] || ''} 
+                      onChange={(val) => {
+                        const newProgs = [...tempProgressions];
+                        newProgs[i] = val;
+                        setTempProgressions(newProgs);
+                      }} 
+                    />
                   </div>
                 ))}
-                <Button variant="outline" size="sm" onClick={() => setTempVideoUrls([...tempVideoUrls, ''])} className="w-full text-xs">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setTempVideoUrls([...tempVideoUrls, '']);
+                  setTempProgressions([...tempProgressions, '']);
+                }} className="w-full text-xs">
                   <Plus className="h-3 w-3 mr-1" /> Añadir otro video
                 </Button>
               </div>
             </div>
-            
-            <ProgressionBuilder value={tempProgression} onChange={setTempProgression} />
 
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setEditingVideoHarmony(null)}>Cancelar</Button>
