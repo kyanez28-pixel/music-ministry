@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, BarChart3, GraduationCap } from 'lucide-react';
+import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, BarChart3, Link2, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
@@ -16,6 +16,7 @@ import { ExerciseSection } from '@/components/ExerciseSection';
 import type { InstrumentDef } from '@/types/music';
 import { useInstruments } from '@/hooks/use-instruments';
 import { ScalesEducation } from '@/components/ScalesEducation';
+import { useLocalStorage } from '@/hooks/use-local-storage';
 
 const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
@@ -44,12 +45,16 @@ export default function ScalesPage() {
   const { instruments } = useInstruments();
   const [search, setSearch] = useState('');
 
+  // Video URL storage for ALL scales (predefined + custom)
+  const [scaleVideos, setScaleVideos] = useLocalStorage<Record<string,string>>('kymusic_scale_videos', {});
+  const [playingScaleId, setPlayingScaleId] = useState<string | null>(null);
+
   const [editingVideoScale, setEditingVideoScale] = useState<{id: string, name: string} | null>(null);
   const [tempVideoUrl, setTempVideoUrl] = useState('');
 
   const openVideoEdit = (e: React.MouseEvent, scale: any) => {
     e.stopPropagation(); e.preventDefault();
-    setEditingVideoScale({ id: scale.id, name: scale.label });
+    setEditingVideoScale({ id: scale.id, name: scale.labelEN || scale.label });
     setTempVideoUrl(scale.video_url || '');
   };
 
@@ -114,10 +119,16 @@ export default function ScalesPage() {
 
   const saveVideo = () => {
     if (editingVideoScale) {
-      setCustomScales((prev: any[]) => prev.map((s: any) => 
+      // Save to scaleVideos map (works for both predefined and custom scales)
+      setScaleVideos((prev: Record<string,string>) => ({
+        ...prev,
+        [editingVideoScale.id]: tempVideoUrl,
+      }));
+      // Also update customScales if it's a custom one
+      setCustomScales((prev: any[]) => prev.map((s: any) =>
         s.id === editingVideoScale.id ? { ...s, video_url: tempVideoUrl } : s
       ));
-      toast.success('Video actualizado');
+      toast.success(tempVideoUrl ? 'Video guardado ✓' : 'Video eliminado');
     }
     setEditingVideoScale(null);
   };
@@ -179,13 +190,20 @@ export default function ScalesPage() {
     const mappedCustom = (customScales || []).map((s: any) => ({
       id: s.id,
       label: s.name,
+      labelEN: s.name,
       scaleType: s.type || 'custom',
       note: 'C',
+      noteEN: 'C',
       folder_id: s.folder_id,
-      video_url: s.video_url,
+      video_url: scaleVideos[s.id] || s.video_url || '',
     }));
-    return [...PREDEFINED_SCALES, ...mappedCustom];
-  }, [customScales]);
+    // Merge scaleVideos into predefined scales
+    const mappedPredefined = PREDEFINED_SCALES.map(s => ({
+      ...s,
+      video_url: scaleVideos[s.id] || '',
+    }));
+    return [...mappedPredefined, ...mappedCustom];
+  }, [customScales, scaleVideos]);
 
   const filtered = useMemo(() => allScales
     .filter((s: any) => filterType === 'todos' || s.scaleType === filterType)
@@ -271,47 +289,96 @@ export default function ScalesPage() {
     const progressPct = Math.min(100, (count / maxPractice) * 100);
     const theory = SCALE_THEORY[scale.scaleType];
     const displayLabel = scale.labelEN || scale.label;
+    const hasVideo = !!scale.video_url;
+    const isPlaying = playingScaleId === scale.id;
+
+    // Get YouTube embed ID
+    const ytMatch = scale.video_url?.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/);
+    const ytId = ytMatch?.[1] ?? null;
+
     return (
-      <label
-        key={scale.id}
-        className={`stat-card flex items-start gap-3 cursor-pointer transition-all hover:border-primary/40 group ${
-          checked ? 'border-primary/40 bg-primary/10' : 'border-white/5 bg-white/5'
-        }`}
-      >
-        <Checkbox checked={checked} onCheckedChange={() => toggleScale(scale.id)}
-          className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <span className={`text-sm font-semibold truncate block ${checked ? 'text-primary' : 'text-foreground'}`}>
-                {displayLabel}
-              </span>
-              {theory && (
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
-                  style={{ background: theory.color+'22', color: theory.color }}>
-                  {theory.labelEN}
+      <div key={scale.id} className={`stat-card transition-all ${
+        checked ? 'border-primary/40 bg-primary/10' : 'border-white/5 bg-white/5'
+      }`}>
+        {/* Main row */}
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <Checkbox checked={checked} onCheckedChange={() => toggleScale(scale.id)}
+            className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <span className={`text-sm font-semibold truncate block ${checked ? 'text-primary' : 'text-foreground'}`}>
+                  {displayLabel}
                 </span>
-              )}
+                {theory && (
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
+                    style={{ background: theory.color+'22', color: theory.color }}>
+                    {theory.labelEN}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                {count > 0 && <span className="text-[10px] text-muted-foreground font-mono">{count}×</span>}
+                {allImages.some((img: any) => img.scale_id === scale.id) && <ImageIcon className="h-3 w-3 text-primary/60" />}
+                {/* Play button: red when has URL, shows player inline */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault();
+                    if (hasVideo) setPlayingScaleId(isPlaying ? null : scale.id);
+                    else openVideoEdit(e, scale);
+                  }}
+                  className={`p-0.5 rounded transition-colors ${
+                    hasVideo
+                      ? isPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
+                      : 'text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-muted-foreground'
+                  }`}
+                  title={hasVideo ? (isPlaying ? 'Cerrar video' : 'Ver video') : 'Agregar video'}
+                >
+                  <Play className="h-3.5 w-3.5" fill={hasVideo ? 'currentColor' : 'none'} />
+                </button>
+                {/* Edit video link (only when has URL) */}
+                {hasVideo && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); openVideoEdit(e, scale); }}
+                    className="p-0.5 rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary transition-all"
+                    title="Editar enlace de video"
+                  >
+                    <Link2 className="h-3 w-3" />
+                  </button>
+                )}
+                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditScale(scale); }}
+                  className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity p-0.5">
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-              {count > 0 && <span className="text-[10px] text-muted-foreground font-mono">{count}×</span>}
-              {allImages.some((img: any) => img.scale_id === scale.id) && <ImageIcon className="h-3 w-3 text-primary/60" />}
-              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditScale(scale); }}
-                className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity">
-                <Pencil className="h-3 w-3" />
-              </button>
-              <button onClick={(e: React.MouseEvent) => openVideoEdit(e, scale)}
-                className={`hover:text-primary transition-colors ${scale.video_url ? 'text-red-500' : 'text-muted-foreground/30 opacity-0 group-hover:opacity-100'}`}>
-                <Play className="h-3.5 w-3.5" />
-              </button>
+            <div className="h-1 bg-white/5 rounded-full overflow-hidden mt-2">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${progressPct}%`, background: theory?.color ?? 'hsl(var(--primary))' }} />
             </div>
           </div>
-          <div className="h-1 bg-white/5 rounded-full overflow-hidden mt-2">
-            <div className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${progressPct}%`, background: theory?.color ?? 'hsl(var(--primary))' }} />
+        </label>
+
+        {/* Inline video player */}
+        {isPlaying && hasVideo && (
+          <div className="mt-3 rounded-lg overflow-hidden border border-white/10">
+            {ytId ? (
+              <div className="aspect-video">
+                <iframe
+                  src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
+                  className="w-full h-full border-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <a href={scale.video_url} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 p-3 text-sm text-primary hover:bg-primary/10 transition-colors">
+                <Play className="h-4 w-4" /> Abrir enlace
+              </a>
+            )}
           </div>
-        </div>
-      </label>
+        )}
+      </div>
     );
   };
   if (isLoadingScales || isLoadingFolders) {
