@@ -395,6 +395,12 @@ export default function ScalesPage() {
                 );
               })}
             </div>
+            {progression && (
+              <div className="p-4 bg-primary/5 border-t border-white/5">
+                <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Notas</p>
+                <p className="font-mono text-base text-foreground/90 font-semibold">{progression}</p>
+              </div>
+            )}
           </div>
         )}
       </div>

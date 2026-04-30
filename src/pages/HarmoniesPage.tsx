@@ -337,13 +337,7 @@ export default function HarmoniesPage() {
         </label>
 
         {isPlaying && hasVideo && (
-          <div className="mt-3 overflow-hidden animate-in slide-in-from-top-2">
-            {progression && (
-              <div className="bg-black/30 p-3 rounded-lg border border-border/50 mb-2">
-                <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Acordes</p>
-                <p className="font-mono text-sm sm:text-base text-foreground/90 font-semibold">{progression}</p>
-              </div>
-            )}
+          <div className="mt-3 rounded-lg overflow-hidden border border-white/10 bg-black animate-in slide-in-from-top-2">
             <div className="flex flex-col gap-2 h-full overflow-y-auto custom-scrollbar max-h-[60vh]">
               {urls.map((url: string, idx: number) => {
                 const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
@@ -364,6 +358,12 @@ export default function HarmoniesPage() {
                 );
               })}
             </div>
+            {progression && (
+              <div className="p-4 bg-primary/5 border-t border-white/5">
+                <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Acordes</p>
+                <p className="font-mono text-base text-foreground/90 font-semibold">{progression}</p>
+              </div>
+            )}
           </div>
         )}
       </div>
