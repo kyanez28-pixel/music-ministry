@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, BarChart3, Link2, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ProgressionBuilder } from '@/components/ProgressionBuilder';
 import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { ExerciseSection } from '@/components/ExerciseSection';
 import type { InstrumentDef } from '@/types/music';
@@ -47,16 +48,19 @@ export default function ScalesPage() {
 
   // Video URL storage for ALL scales (predefined + custom)
   const [scaleVideos, setScaleVideos] = useLocalStorage<Record<string,string>>('kymusic_scale_videos', {});
+  const [scaleProgressions, setScaleProgressions] = useLocalStorage<Record<string,string>>('kymusic_scale_progressions', {});
   const [playingScaleId, setPlayingScaleId] = useState<string | null>(null);
 
   const [editingVideoScale, setEditingVideoScale] = useState<{id: string, name: string} | null>(null);
   const [tempVideoUrls, setTempVideoUrls] = useState<string[]>(['']);
+  const [tempProgression, setTempProgression] = useState<string>('');
 
   const openVideoEdit = (e: React.MouseEvent, scale: any) => {
     e.stopPropagation(); e.preventDefault();
     setEditingVideoScale({ id: scale.id, name: scale.label });
     const parsedUrls = scale.video_url ? scale.video_url.split('\n').filter(Boolean) : [''];
     setTempVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
+    setTempProgression(scaleProgressions[scale.id] || '');
   };
 
   const resetFolderForm = () => {
@@ -126,6 +130,10 @@ export default function ScalesPage() {
         ...prev,
         [editingVideoScale.id]: finalUrlStr,
       }));
+      setScaleProgressions((prev: Record<string,string>) => ({
+        ...prev,
+        [editingVideoScale.id]: tempProgression,
+      }));
       // Also update customScales if it's a custom one
       setCustomScales((prev: any[]) => prev.map((s: any) =>
         s.id === editingVideoScale.id ? { ...s, video_url: finalUrlStr } : s
@@ -133,6 +141,7 @@ export default function ScalesPage() {
       toast.success(finalUrlStr ? 'Videos guardados ✓' : 'Videos eliminados');
     }
     setEditingVideoScale(null);
+    setTempProgression('');
   };
 
   const handleFiles = async (files: File[]) => {
@@ -292,7 +301,8 @@ export default function ScalesPage() {
     const theory = SCALE_THEORY[scale.scaleType];
     const displayLabel = scale.label;
     const urls = scale.video_url ? scale.video_url.split('\n').filter(Boolean) : [];
-    const hasVideo = urls.length > 0;
+    const progression = scaleProgressions[scale.id];
+    const hasVideo = urls.length > 0 || !!progression;
     const isPlaying = playingScaleId === scale.id;
 
     return (
@@ -641,9 +651,12 @@ export default function ScalesPage() {
                 </Button>
               </div>
             </div>
+            
+            <ProgressionBuilder value={tempProgression} onChange={setTempProgression} />
+
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setEditingVideoScale(null)}>Cancelar</Button>
-              <Button size="sm" onClick={saveVideo}>Guardar Videos</Button>
+              <Button size="sm" onClick={saveVideo}>Guardar</Button>
             </div>
           </div>
         </DialogContent>

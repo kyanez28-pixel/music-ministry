@@ -12,6 +12,7 @@ import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight,
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ProgressionBuilder } from '@/components/ProgressionBuilder';
 import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { ExerciseSection } from '@/components/ExerciseSection';
 import type { InstrumentDef } from '@/types/music';
@@ -45,9 +46,12 @@ export default function HarmoniesPage() {
   const [instrument, setInstrument] = useState<Instrument>(instruments[0]?.id || 'piano');
   const [search, setSearch] = useState('');
 
+  const [harmonyProgressions, setHarmonyProgressions] = useLocalStorage<Record<string,string>>('kymusic_harmony_progressions', {});
+
   // Video attachments
   const [editingVideoHarmony, setEditingVideoHarmony] = useState<{id: string, name: string} | null>(null);
   const [tempVideoUrls, setTempVideoUrls] = useState<string[]>(['']);
+  const [tempProgression, setTempProgression] = useState<string>('');
   const [playingHarmonyId, setPlayingHarmonyId] = useState<string | null>(null);
 
   const openVideoEdit = (e: React.MouseEvent, harmony: any) => {
@@ -55,6 +59,7 @@ export default function HarmoniesPage() {
     setEditingVideoHarmony({ id: harmony.id, name: harmony.name });
     const parsedUrls = harmony.video_url ? harmony.video_url.split('\n').filter(Boolean) : [''];
     setTempVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
+    setTempProgression(harmonyProgressions[harmony.id] || '');
   };
 
   const resetFolderForm = () => {
@@ -117,12 +122,14 @@ export default function HarmoniesPage() {
   const saveVideo = () => {
     if (editingVideoHarmony) {
       const finalUrlStr = tempVideoUrls.filter(u => u.trim() !== '').join('\n');
+      setHarmonyProgressions((prev: Record<string,string>) => ({ ...prev, [editingVideoHarmony.id]: tempProgression }));
       setCustomHarmonies((prev: any[]) => prev.map((h: any) => 
         h.id === editingVideoHarmony.id ? { ...h, video_url: finalUrlStr } : h
       ));
-      toast.success(finalUrlStr ? 'Videos guardados ✓' : 'Videos eliminados');
+      toast.success('Información guardada');
     }
     setEditingVideoHarmony(null);
+    setTempProgression('');
   };
 
   const handleFiles = async (files: File[]) => {
@@ -270,7 +277,8 @@ export default function HarmoniesPage() {
     const count = practiceCount[harmony.id] ?? 0;
     const progressPct = Math.min(100, (count / maxPractice) * 100);
     const urls = harmony.video_url ? harmony.video_url.split('\n').filter(Boolean) : [];
-    const hasVideo = urls.length > 0;
+    const progression = harmonyProgressions[harmony.id];
+    const hasVideo = urls.length > 0 || !!progression;
     const isPlaying = playingHarmonyId === harmony.id;
 
     return (
@@ -329,7 +337,13 @@ export default function HarmoniesPage() {
         </label>
 
         {isPlaying && hasVideo && (
-          <div className="mt-3 rounded-lg overflow-hidden border border-white/10 bg-black">
+          <div className="mt-3 overflow-hidden animate-in slide-in-from-top-2">
+            {progression && (
+              <div className="bg-black/30 p-3 rounded-lg border border-border/50 mb-2">
+                <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Acordes</p>
+                <p className="font-mono text-sm sm:text-base text-foreground/90 font-semibold">{progression}</p>
+              </div>
+            )}
             <div className="flex flex-col gap-2 h-full overflow-y-auto custom-scrollbar max-h-[60vh]">
               {urls.map((url: string, idx: number) => {
                 const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
@@ -606,9 +620,12 @@ export default function HarmoniesPage() {
                 </Button>
               </div>
             </div>
+            
+            <ProgressionBuilder value={tempProgression} onChange={setTempProgression} />
+
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setEditingVideoHarmony(null)}>Cancelar</Button>
-              <Button size="sm" onClick={saveVideo}>Guardar Videos</Button>
+              <Button size="sm" onClick={saveVideo}>Guardar</Button>
             </div>
           </div>
         </DialogContent>
