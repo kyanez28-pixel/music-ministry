@@ -45,6 +45,9 @@ export function useSupabaseData<T>(tableName: string) {
               newData.map((item: any) => {
                 const copy = { ...item, user_id: user.id };
                 delete copy.id;
+                if (copy.created_at === undefined || copy.created_at === null) {
+                  copy.created_at = new Date().toISOString();
+                }
                 return copy;
               })
             );
