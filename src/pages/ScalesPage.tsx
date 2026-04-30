@@ -50,12 +50,13 @@ export default function ScalesPage() {
   const [playingScaleId, setPlayingScaleId] = useState<string | null>(null);
 
   const [editingVideoScale, setEditingVideoScale] = useState<{id: string, name: string} | null>(null);
-  const [tempVideoUrl, setTempVideoUrl] = useState('');
+  const [tempVideoUrls, setTempVideoUrls] = useState<string[]>(['']);
 
   const openVideoEdit = (e: React.MouseEvent, scale: any) => {
     e.stopPropagation(); e.preventDefault();
     setEditingVideoScale({ id: scale.id, name: scale.labelEN || scale.label });
-    setTempVideoUrl(scale.video_url || '');
+    const parsedUrls = scale.video_url ? scale.video_url.split('\n').filter(Boolean) : [''];
+    setTempVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
   };
 
   const resetFolderForm = () => {
@@ -119,16 +120,17 @@ export default function ScalesPage() {
 
   const saveVideo = () => {
     if (editingVideoScale) {
+      const finalUrlStr = tempVideoUrls.filter(u => u.trim() !== '').join('\n');
       // Save to scaleVideos map (works for both predefined and custom scales)
       setScaleVideos((prev: Record<string,string>) => ({
         ...prev,
-        [editingVideoScale.id]: tempVideoUrl,
+        [editingVideoScale.id]: finalUrlStr,
       }));
       // Also update customScales if it's a custom one
       setCustomScales((prev: any[]) => prev.map((s: any) =>
-        s.id === editingVideoScale.id ? { ...s, video_url: tempVideoUrl } : s
+        s.id === editingVideoScale.id ? { ...s, video_url: finalUrlStr } : s
       ));
-      toast.success(tempVideoUrl ? 'Video guardado ✓' : 'Video eliminado');
+      toast.success(finalUrlStr ? 'Videos guardados ✓' : 'Videos eliminados');
     }
     setEditingVideoScale(null);
   };
@@ -289,12 +291,9 @@ export default function ScalesPage() {
     const progressPct = Math.min(100, (count / maxPractice) * 100);
     const theory = SCALE_THEORY[scale.scaleType];
     const displayLabel = scale.labelEN || scale.label;
-    const hasVideo = !!scale.video_url;
+    const urls = scale.video_url ? scale.video_url.split('\n').filter(Boolean) : [];
+    const hasVideo = urls.length > 0;
     const isPlaying = playingScaleId === scale.id;
-
-    // Get YouTube embed ID
-    const ytMatch = scale.video_url?.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/);
-    const ytId = ytMatch?.[1] ?? null;
 
     return (
       <div key={scale.id} className={`stat-card transition-all ${
@@ -331,7 +330,7 @@ export default function ScalesPage() {
                       ? isPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
                       : 'text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-muted-foreground'
                   }`}
-                  title={hasVideo ? (isPlaying ? 'Cerrar video' : 'Ver video') : 'Agregar video'}
+                  title={hasVideo ? (isPlaying ? 'Cerrar videos' : 'Ver videos') : 'Agregar video'}
                 >
                   <Play className="h-3.5 w-3.5" fill={hasVideo ? 'currentColor' : 'none'} />
                 </button>
@@ -339,10 +338,15 @@ export default function ScalesPage() {
                 {hasVideo && (
                   <button
                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); openVideoEdit(e, scale); }}
-                    className="p-0.5 rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary transition-all"
-                    title="Editar enlace de video"
+                    className="p-0.5 rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary transition-all relative"
+                    title="Editar enlaces de video"
                   >
                     <Link2 className="h-3 w-3" />
+                    {urls.length > 1 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-[8px] text-white w-3 h-3 flex items-center justify-center rounded-full">
+                        {urls.length}
+                      </span>
+                    )}
                   </button>
                 )}
                 <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditScale(scale); }}
@@ -360,22 +364,27 @@ export default function ScalesPage() {
 
         {/* Inline video player */}
         {isPlaying && hasVideo && (
-          <div className="mt-3 rounded-lg overflow-hidden border border-white/10">
-            {ytId ? (
-              <div className="aspect-video">
-                <iframe
-                  src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
-                  className="w-full h-full border-none"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-            ) : (
-              <a href={scale.video_url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 p-3 text-sm text-primary hover:bg-primary/10 transition-colors">
-                <Play className="h-4 w-4" /> Abrir enlace
-              </a>
-            )}
+          <div className="mt-3 rounded-lg overflow-hidden border border-white/10 bg-black">
+            <div className="flex flex-col gap-2 h-full overflow-y-auto custom-scrollbar max-h-[60vh]">
+              {urls.map((url: string, idx: number) => {
+                const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
+                return ytId ? (
+                  <div key={idx} className="w-full aspect-video flex-shrink-0">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${ytId}${urls.length === 1 ? '?autoplay=1' : ''}`}
+                      className="w-full h-full border-none"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30">
+                    <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
+                  </a>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -609,40 +618,32 @@ export default function ScalesPage() {
           <div className="space-y-4 pt-2">
             <p className="text-sm font-semibold text-primary">{editingVideoScale?.name}</p>
             <div>
-              <label className="text-xs text-muted-foreground">Enlace (YouTube, Spotify, Drive, cualquier URL...)</label>
-              <Input value={tempVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTempVideoUrl(e.target.value)} placeholder="https://..." />
+              <label className="text-xs text-muted-foreground mb-2 block">Enlaces (YouTube, Spotify, Drive...)</label>
+              <div className="space-y-2">
+                {tempVideoUrls.map((url, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input value={url} onChange={(e) => {
+                      const newUrls = [...tempVideoUrls];
+                      newUrls[i] = e.target.value;
+                      setTempVideoUrls(newUrls);
+                    }} placeholder="https://..." className="flex-1" />
+                    {tempVideoUrls.length > 1 && (
+                      <Button variant="outline" size="icon" onClick={() => {
+                        setTempVideoUrls(tempVideoUrls.filter((_, idx) => idx !== i));
+                      }} className="shrink-0 text-muted-foreground hover:text-destructive">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => setTempVideoUrls([...tempVideoUrls, ''])} className="w-full text-xs">
+                  <Plus className="h-3 w-3 mr-1" /> Añadir otro video
+                </Button>
+              </div>
             </div>
-            {tempVideoUrl && (
-              tempVideoUrl.includes('youtu') ? (
-                <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/10 mt-2">
-                  <iframe
-                    src={tempVideoUrl
-                      .replace('watch?v=', 'embed/')
-                      .replace('youtu.be/', 'www.youtube.com/embed/')
-                      .split('&')[0]}
-                    className="w-full h-full border-none"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
-                <a
-                  href={tempVideoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-primary hover:underline bg-primary/10 border border-primary/20 rounded-lg p-3 transition-colors"
-                >
-                  <Play className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{tempVideoUrl}</span>
-                </a>
-              )
-            )}
             <div className="flex gap-2 justify-end pt-2">
-              {tempVideoUrl && (
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setTempVideoUrl('')}>Quitar</Button>
-              )}
               <Button variant="outline" size="sm" onClick={() => setEditingVideoScale(null)}>Cancelar</Button>
-              <Button size="sm" onClick={saveVideo}>Guardar</Button>
+              <Button size="sm" onClick={saveVideo}>Guardar Videos</Button>
             </div>
           </div>
         </DialogContent>

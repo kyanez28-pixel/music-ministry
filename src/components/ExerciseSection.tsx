@@ -111,7 +111,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   const [fBpm, setFBpm] = useState(0);
   const [fKey, setFKey] = useState('');
   const [fDescription, setFDescription] = useState('');
-  const [fVideoUrl, setFVideoUrl] = useState('');
+  const [fVideoUrls, setFVideoUrls] = useState<string[]>(['']);
   const [fProgress, setFProgress] = useState(0);
 
   // Filter logic
@@ -157,7 +157,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
     setFTitle(''); setMFolderId(null); setFCategory(defaultCategory || ''); setFInstrument('piano');
     setFDifficulty('principiante'); setFStatus('pendiente');
     setFBpm(0); setFKey(''); setFDescription('');
-    setFVideoUrl(''); setFProgress(0);
+    setFVideoUrls(['']); setFProgress(0);
   };
 
   const openEdit = (e: Exercise) => {
@@ -165,7 +165,9 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
     setFTitle(e.title); setMFolderId(e.folder_id || null); setFCategory(e.category); setFInstrument(e.instrument);
     setFDifficulty(e.difficulty); setFStatus(e.status);
     setFBpm(e.bpm); setFKey(e.key); setFDescription(e.description);
-    setFVideoUrl(e.video_url); setFProgress(e.progress);
+    const parsedUrls = e.video_url ? e.video_url.split('\n').filter(Boolean) : [''];
+    setFVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
+    setFProgress(e.progress);
     setShowForm(true);
   };
 
@@ -177,7 +179,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
       title: fTitle.trim(), category: fCategory.trim(),
       instrument: fInstrument, difficulty: fDifficulty,
       status: fStatus, bpm: fBpm, key: fKey,
-      description: fDescription, video_url: fVideoUrl,
+      description: fDescription, video_url: fVideoUrls.filter(u => u.trim() !== '').join('\n'),
       progress: fProgress,
       created_at: editingId ? ((exercises || []).find((e: any) => e.id === editingId)?.created_at ?? today) : today,
       last_practiced: today,
@@ -298,6 +300,9 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
   const renderCard = (ex: any) => {
     const imgs = imagesByExercise[ex.id] ?? [];
     const practicedToday = ex.last_practiced === today;
+    const urls = ex.video_url ? ex.video_url.split('\n').filter(Boolean) : [];
+    const hasVideo = urls.length > 0;
+
     return (
       <div key={ex.id} className={`stat-card relative group transition-all hover:border-primary/40 ${practicedToday ? 'border-primary/30' : ''}`}>
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -325,39 +330,48 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
         </div>
 
         <div className="relative aspect-video rounded-md overflow-hidden bg-secondary/50 mb-3 border border-white/5 cursor-pointer">
-          {playingVideoId === ex.id && ex.video_url ? (
-            // ── Inline YouTube embed ──
-            (() => {
-              const ytId = getYouTubeId(ex.video_url);
-              return ytId ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${ytId}?autoplay=1`}
-                  className="w-full h-full border-none"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <a href={ex.video_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-primary underline">
-                    <Play className="h-4 w-4" /> Abrir video
-                  </a>
-                </div>
-              );
-            })()
+          {playingVideoId === ex.id && hasVideo ? (
+            // ── Inline YouTube embed (multiple) ──
+            <div className="flex flex-col gap-2 h-full overflow-y-auto custom-scrollbar bg-black">
+              {urls.map((url: string, idx: number) => {
+                const ytId = getYouTubeId(url);
+                return ytId ? (
+                  <div key={idx} className="w-full aspect-video flex-shrink-0">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${ytId}${urls.length === 1 ? '?autoplay=1' : ''}`}
+                      className="w-full h-full border-none"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  <div key={idx} className="flex items-center justify-center p-6 bg-secondary/30 flex-shrink-0">
+                    <a href={url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-primary underline">
+                      <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
           ) : imgs.length > 0 ? (
-            <div onClick={() => imgs.length > 0 ? (setViewerImages(imgs), setViewerIndex(0)) : undefined}>
+            <div onClick={() => imgs.length > 0 ? (setViewerImages(imgs), setViewerIndex(0)) : undefined} className="w-full h-full">
               <img src={imgs[0].storage_path} className="w-full h-full object-cover" alt="partitura" />
             </div>
-          ) : ex.video_url ? (
+          ) : hasVideo ? (
             // ── YouTube thumbnail with play overlay ──
             <div className="relative w-full h-full" onClick={() => setPlayingVideoId(ex.id)}>
-              <YouTubeThumb url={ex.video_url} />
+              <YouTubeThumb url={urls[0]} />
               <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/10 transition-colors">
                 <div className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
                   <Play className="h-5 w-5 text-white fill-white ml-0.5" />
                 </div>
               </div>
+              {urls.length > 1 && (
+                <div className="absolute top-2 right-2 bg-black/80 text-white text-[10px] px-2 py-1 rounded-md font-bold shadow-lg">
+                  {urls.length} VIDEOS
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full opacity-20" onClick={() => openEdit(ex)}>
@@ -376,7 +390,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             >
               {practicedToday ? '✓ Practicado' : '+ Hoy'}
             </button>
-            {ex.video_url && (
+            {hasVideo && (
               <button
                 onClick={() => setPlayingVideoId(playingVideoId === ex.id ? null : ex.id)}
                 className={`text-[10px] px-2 py-1 rounded-full transition-all flex items-center gap-1 ${
@@ -386,7 +400,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                 }`}
               >
                 <Play className="h-2.5 w-2.5 fill-current" />
-                {playingVideoId === ex.id ? 'Cerrar' : 'Ver video'}
+                {playingVideoId === ex.id ? 'Cerrar' : (urls.length > 1 ? 'Ver videos' : 'Ver video')}
               </button>
             )}
           </div>
@@ -513,14 +527,27 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             </div>
 
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">Video Link</label>
-              <div className="relative">
-                <Input value={fVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFVideoUrl(e.target.value)} placeholder="https://youtube.com..." className="pr-10" />
-                {fVideoUrl && (
-                  <button onClick={() => setFVideoUrl('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-destructive transition-colors">
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
+              <label className="text-xs text-muted-foreground block mb-1">Videos / Enlaces</label>
+              <div className="space-y-2">
+                {fVideoUrls.map((url, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input value={url} onChange={(e) => {
+                      const newUrls = [...fVideoUrls];
+                      newUrls[i] = e.target.value;
+                      setFVideoUrls(newUrls);
+                    }} placeholder="https://youtube.com..." className="flex-1" />
+                    {fVideoUrls.length > 1 && (
+                      <Button variant="outline" size="icon" onClick={() => {
+                        setFVideoUrls(fVideoUrls.filter((_, idx) => idx !== i));
+                      }} className="shrink-0 text-muted-foreground hover:text-destructive">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => setFVideoUrls([...fVideoUrls, ''])} className="w-full text-xs">
+                  <Plus className="h-3 w-3 mr-1" /> Añadir otro video
+                </Button>
               </div>
             </div>
 

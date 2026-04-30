@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, Link2, ExternalLink } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -47,12 +47,14 @@ export default function HarmoniesPage() {
 
   // Video attachments
   const [editingVideoHarmony, setEditingVideoHarmony] = useState<{id: string, name: string} | null>(null);
-  const [tempVideoUrl, setTempVideoUrl] = useState('');
+  const [tempVideoUrls, setTempVideoUrls] = useState<string[]>(['']);
+  const [playingHarmonyId, setPlayingHarmonyId] = useState<string | null>(null);
 
   const openVideoEdit = (e: React.MouseEvent, harmony: any) => {
     e.stopPropagation(); e.preventDefault();
     setEditingVideoHarmony({ id: harmony.id, name: harmony.name });
-    setTempVideoUrl(harmony.video_url || '');
+    const parsedUrls = harmony.video_url ? harmony.video_url.split('\n').filter(Boolean) : [''];
+    setTempVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
   };
 
   const resetFolderForm = () => {
@@ -114,10 +116,11 @@ export default function HarmoniesPage() {
 
   const saveVideo = () => {
     if (editingVideoHarmony) {
+      const finalUrlStr = tempVideoUrls.filter(u => u.trim() !== '').join('\n');
       setCustomHarmonies((prev: any[]) => prev.map((h: any) => 
-        h.id === editingVideoHarmony.id ? { ...h, video_url: tempVideoUrl } : h
+        h.id === editingVideoHarmony.id ? { ...h, video_url: finalUrlStr } : h
       ));
-      toast.success('Video actualizado');
+      toast.success(finalUrlStr ? 'Videos guardados ✓' : 'Videos eliminados');
     }
     setEditingVideoHarmony(null);
   };
@@ -266,42 +269,90 @@ export default function HarmoniesPage() {
     const checked = todayChecked.has(harmony.id);
     const count = practiceCount[harmony.id] ?? 0;
     const progressPct = Math.min(100, (count / maxPractice) * 100);
+    const urls = harmony.video_url ? harmony.video_url.split('\n').filter(Boolean) : [];
+    const hasVideo = urls.length > 0;
+    const isPlaying = playingHarmonyId === harmony.id;
+
     return (
-      <label
-        key={harmony.id}
-        className={`stat-card flex items-center gap-3 cursor-pointer transition-all hover:border-primary/40 group ${
-          checked ? 'border-primary/40 bg-primary/10' : 'border-white/5 bg-white/5'
-        }`}
-      >
-        <Checkbox checked={checked} onCheckedChange={() => toggleHarmony(harmony.id)} 
-          className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1 mt-0.5">
-            <span className={`text-sm font-medium truncate flex items-center gap-1.5 ${checked ? 'text-primary' : 'text-foreground'}`}>
-              <span className="truncate">{harmony.name}</span>
-              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditHarmony(harmony); }} className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity"><Pencil className="h-2.5 w-2.5" /></button>
-              
-              <div className="flex items-center gap-1 shrink-0">
-                {allImages.some((img: any) => img.harmony_id === harmony.id) && (
-                  <ImageIcon className="h-3 w-3 text-primary/60" />
-                )}
-                <button onClick={(e: React.MouseEvent) => openVideoEdit(e, harmony)}
-                  className={`hover:text-primary transition-colors ${
-                    harmony.video_url
-                      ? 'text-red-500'
-                      : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'
-                  }`}>
-                  <Play className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </span>
-            {count > 0 && (
-              <span className="text-xs text-muted-foreground shrink-0 font-mono opacity-60">{count}×</span>
-            )}
+      <div key={harmony.id} className={`stat-card transition-all ${
+        checked ? 'border-primary/40 bg-primary/10' : 'border-white/5 bg-white/5'
+      }`}>
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <Checkbox checked={checked} onCheckedChange={() => toggleHarmony(harmony.id)} 
+            className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1 mt-0.5">
+              <span className={`text-sm font-medium truncate flex items-center gap-1.5 ${checked ? 'text-primary' : 'text-foreground'}`}>
+                <span className="truncate">{harmony.name}</span>
+                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditHarmony(harmony); }} className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity"><Pencil className="h-2.5 w-2.5" /></button>
+                
+                <div className="flex items-center gap-1 shrink-0">
+                  {allImages.some((img: any) => img.harmony_id === harmony.id) && (
+                    <ImageIcon className="h-3 w-3 text-primary/60" />
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault();
+                      if (hasVideo) setPlayingHarmonyId(isPlaying ? null : harmony.id);
+                      else openVideoEdit(e, harmony);
+                    }}
+                    className={`p-0.5 rounded transition-colors ${
+                      hasVideo
+                        ? isPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
+                        : 'text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-muted-foreground'
+                    }`}
+                    title={hasVideo ? (isPlaying ? 'Cerrar videos' : 'Ver videos') : 'Agregar video'}
+                  >
+                    <Play className="h-3.5 w-3.5" fill={hasVideo ? 'currentColor' : 'none'} />
+                  </button>
+                  {hasVideo && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); openVideoEdit(e, harmony); }}
+                      className="p-0.5 rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary transition-all relative"
+                      title="Editar enlaces de video"
+                    >
+                      <Link2 className="h-3 w-3" />
+                      {urls.length > 1 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-[8px] text-white w-3 h-3 flex items-center justify-center rounded-full">
+                          {urls.length}
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </span>
+              {count > 0 && (
+                <span className="text-xs text-muted-foreground shrink-0 font-mono opacity-60">{count}×</span>
+              )}
+            </div>
+            <Progress value={progressPct} className="h-0.5 mt-1.5 bg-white/5" />
           </div>
-          <Progress value={progressPct} className="h-0.5 mt-1.5 bg-white/5" />
-        </div>
-      </label>
+        </label>
+
+        {isPlaying && hasVideo && (
+          <div className="mt-3 rounded-lg overflow-hidden border border-white/10 bg-black">
+            <div className="flex flex-col gap-2 h-full overflow-y-auto custom-scrollbar max-h-[60vh]">
+              {urls.map((url: string, idx: number) => {
+                const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
+                return ytId ? (
+                  <div key={idx} className="w-full aspect-video flex-shrink-0">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${ytId}${urls.length === 1 ? '?autoplay=1' : ''}`}
+                      className="w-full h-full border-none"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30">
+                    <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
   if (isLoadingHarmonies || isLoadingFolders || isLoadingLogs) {
@@ -526,23 +577,38 @@ export default function HarmoniesPage() {
           <DialogHeader>
             <DialogTitle className="font-display flex items-center gap-2">
               <Play className="h-4 w-4 text-red-500" />
-              Video de clase / referencia
+              Videos de clase / referencia
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <p className="text-sm font-semibold text-primary">{editingVideoHarmony?.name}</p>
             <div>
-              <label className="text-xs text-muted-foreground">Link de YouTube (ej: https://youtu.be/...)</label>
-              <Input value={tempVideoUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTempVideoUrl(e.target.value)} placeholder="https://..." />
-            </div>
-            {tempVideoUrl && tempVideoUrl.includes('youtu') && (
-              <div className="w-full aspect-video rounded-lg overflow-hidden bg-black/10 mt-2">
-                <iframe src={tempVideoUrl.replace('watch?v=', 'embed/').split('&')[0]} className="w-full h-full border-none" />
+              <label className="text-xs text-muted-foreground mb-2 block">Enlaces (YouTube, Spotify, Drive...)</label>
+              <div className="space-y-2">
+                {tempVideoUrls.map((url, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input value={url} onChange={(e) => {
+                      const newUrls = [...tempVideoUrls];
+                      newUrls[i] = e.target.value;
+                      setTempVideoUrls(newUrls);
+                    }} placeholder="https://..." className="flex-1" />
+                    {tempVideoUrls.length > 1 && (
+                      <Button variant="outline" size="icon" onClick={() => {
+                        setTempVideoUrls(tempVideoUrls.filter((_, idx) => idx !== i));
+                      }} className="shrink-0 text-muted-foreground hover:text-destructive">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" onClick={() => setTempVideoUrls([...tempVideoUrls, ''])} className="w-full text-xs">
+                  <Plus className="h-3 w-3 mr-1" /> Añadir otro video
+                </Button>
               </div>
-            )}
+            </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() => setEditingVideoHarmony(null)}>Cancelar</Button>
-              <Button size="sm" onClick={saveVideo}>Guardar</Button>
+              <Button size="sm" onClick={saveVideo}>Guardar Videos</Button>
             </div>
           </div>
         </DialogContent>
