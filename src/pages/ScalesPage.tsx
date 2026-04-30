@@ -1,21 +1,21 @@
 import { useState, useMemo, useRef } from 'react';
 import { useSessions, useScaleLogs, useScales, useScaleFolders, useScaleImages } from '@/hooks/use-music-data';
 import { generateId, getTodayEC } from '@/lib/music-utils';
-import { PREDEFINED_SCALES, SCALE_TYPE_OPTIONS, NOTES } from '@/lib/predefined-scales';
+import { PREDEFINED_SCALES, SCALE_TYPE_OPTIONS, NOTES, NOTE_EN, SCALE_THEORY } from '@/lib/predefined-scales';
 import type { Instrument, ScalePracticeLog } from '@/types/music';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon } from 'lucide-react';
-import { useLocalStorage } from '@/hooks/use-local-storage';
+import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, BarChart3, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { ExerciseSection } from '@/components/ExerciseSection';
 import type { InstrumentDef } from '@/types/music';
 import { useInstruments } from '@/hooks/use-instruments';
+import { ScalesEducation } from '@/components/ScalesEducation';
 
 const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
@@ -269,37 +269,47 @@ export default function ScalesPage() {
     const checked = todayChecked.has(scale.id);
     const count = practiceCount[scale.id] ?? 0;
     const progressPct = Math.min(100, (count / maxPractice) * 100);
+    const theory = SCALE_THEORY[scale.scaleType];
+    const displayLabel = scale.labelEN || scale.label;
     return (
       <label
         key={scale.id}
-        className={`stat-card flex items-center gap-3 cursor-pointer transition-all hover:border-primary/40 group ${
+        className={`stat-card flex items-start gap-3 cursor-pointer transition-all hover:border-primary/40 group ${
           checked ? 'border-primary/40 bg-primary/10' : 'border-white/5 bg-white/5'
         }`}
       >
-        <Checkbox checked={checked} onCheckedChange={() => toggleScale(scale.id)} className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
+        <Checkbox checked={checked} onCheckedChange={() => toggleScale(scale.id)}
+          className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary mt-0.5" />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1 mt-0.5">
-            <span className={`text-sm font-medium truncate flex items-center gap-1.5 ${checked ? 'text-primary' : 'text-foreground'}`}>
-              <span className="truncate">{scale.label}</span>
-              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditScale(scale); }} className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity"><Pencil className="h-2.5 w-2.5" /></button>
-              
-              <div className="flex items-center gap-1 shrink-0">
-                {allImages.some((img: any) => img.scale_id === scale.id) && (
-                  <ImageIcon className="h-3 w-3 text-primary/60" />
-                )}
-                <button onClick={(e: React.MouseEvent) => openVideoEdit(e, scale)}
-                  className={`hover:text-primary transition-colors ${scale.video_url ? 'text-red-500' : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100'}`}>
-                  <Play className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </span>
-            {count > 0 && <span className="text-xs text-muted-foreground shrink-0 font-mono opacity-60">{count}×</span>}
-          </div>
-          {count > 0 && (
-            <div className="h-1 bg-white/5 rounded-full overflow-hidden mt-1">
-              <div className="h-full bg-primary/40 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <span className={`text-sm font-semibold truncate block ${checked ? 'text-primary' : 'text-foreground'}`}>
+                {displayLabel}
+              </span>
+              {theory && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
+                  style={{ background: theory.color+'22', color: theory.color }}>
+                  {theory.labelEN}
+                </span>
+              )}
             </div>
-          )}
+            <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+              {count > 0 && <span className="text-[10px] text-muted-foreground font-mono">{count}×</span>}
+              {allImages.some((img: any) => img.scale_id === scale.id) && <ImageIcon className="h-3 w-3 text-primary/60" />}
+              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditScale(scale); }}
+                className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity">
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button onClick={(e: React.MouseEvent) => openVideoEdit(e, scale)}
+                className={`hover:text-primary transition-colors ${scale.video_url ? 'text-red-500' : 'text-muted-foreground/30 opacity-0 group-hover:opacity-100'}`}>
+                <Play className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="h-1 bg-white/5 rounded-full overflow-hidden mt-2">
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%`, background: theory?.color ?? 'hsl(var(--primary))' }} />
+          </div>
         </div>
       </label>
     );
@@ -316,30 +326,35 @@ export default function ScalesPage() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="guia" className="w-full">
+      <Tabs defaultValue="practica" className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="page-title">🎼 Escalas</h1>
-            <p className="text-sm text-muted-foreground mt-1">{totalPracticed} de {PREDEFINED_SCALES.length} escalas · {folders.length} carpetas</p>
+            <h1 className="page-title">🎼 Scales</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {totalPracticed} of {PREDEFINED_SCALES.length} scales practiced · {folders.length} folders
+            </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <TabsList className="glass-panel p-1">
-              <TabsTrigger value="guia" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
-                <ListMusic className="h-4 w-4" /> Guía
+              <TabsTrigger value="practica" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
+                <ListMusic className="h-4 w-4" /> Practice
+              </TabsTrigger>
+              <TabsTrigger value="educacion" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" /> Progress
               </TabsTrigger>
               <TabsTrigger value="ejercicios" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
-                <BookOpen className="h-4 w-4" /> Mis Ejercicios
+                <BookOpen className="h-4 w-4" /> Exercises
               </TabsTrigger>
             </TabsList>
-            <button onClick={() => { resetFolderForm(); setShowFolderForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="Nueva carpeta"><FolderPlus className="h-4 w-4" /></button>
-            <button onClick={() => { resetScaleForm(); setShowScaleForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="Nueva escala"><Plus className="h-4 w-4" /></button>
+            <button onClick={() => { resetFolderForm(); setShowFolderForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="New folder"><FolderPlus className="h-4 w-4" /></button>
+            <button onClick={() => { resetScaleForm(); setShowScaleForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="New scale"><Plus className="h-4 w-4" /></button>
             <button onClick={saveSession} disabled={checkedCount === 0} className="premium-btn-glow px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              Guardar Sesión {checkedCount > 0 ? `(${checkedCount})` : ''}
+              Save Session {checkedCount > 0 ? `(${checkedCount})` : ''}
             </button>
           </div>
         </div>
 
-        <TabsContent value="guia" className="space-y-6 mt-0">
+        <TabsContent value="practica" className="space-y-6 mt-0">
           {/* Instrument selector */}
           <div className="flex flex-wrap gap-2">
             {instruments.map((inst: InstrumentDef) => (
@@ -351,14 +366,14 @@ export default function ScalesPage() {
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2">
-            <Input placeholder="Buscar escala..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="w-40 flex-1 glass-panel border-white/5" />
+            <Input placeholder="Search scale..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="w-40 flex-1 glass-panel border-white/5" />
             <select value={filterNote} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterNote(e.target.value)} className="glass-panel text-secondary-foreground rounded-md px-3 py-1.5 text-sm border-white/5">
-              <option value="todos">Todas las notas</option>
-              {NOTES.map((n: string) => <option key={n} value={n}>{n}</option>)}
+              <option value="todos">All notes</option>
+              {NOTES.map((n: string) => <option key={n} value={n}>{NOTE_EN[n] ?? n}</option>)}
             </select>
             <select value={filterType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterType(e.target.value)} className="glass-panel text-secondary-foreground rounded-md px-3 py-1.5 text-sm border-white/5">
-              <option value="todos">Todos los tipos</option>
-              {SCALE_TYPE_OPTIONS.map((t: any) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              <option value="todos">All types</option>
+              {SCALE_TYPE_OPTIONS.map((t: any) => <option key={t.value} value={t.value}>{t.labelEN ?? t.label}</option>)}
             </select>
           </div>
 
@@ -378,12 +393,12 @@ export default function ScalesPage() {
           <div className="stat-card border-white/5 bg-white/5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-muted-foreground">
-                Hoy: <span className="text-primary font-semibold">{checkedCount}</span> marcada{checkedCount !== 1 ? 's' : ''}
-                {filtered.length !== PREDEFINED_SCALES.length && ` (de ${filtered.length} filtradas)`}
+                Today: <span className="text-primary font-semibold">{checkedCount}</span> scale{checkedCount !== 1 ? 's' : ''} checked
+                {filtered.length !== PREDEFINED_SCALES.length && ` (of ${filtered.length} filtered)`}
               </span>
               {filtered.length > 0 && (
                 <button onClick={toggleAll} className="text-xs text-primary hover:underline">
-                  {allFilteredChecked ? 'Desmarcar todas' : 'Marcar todas las filtradas'}
+                  {allFilteredChecked ? 'Uncheck all' : 'Check all filtered'}
                 </button>
               )}
             </div>
@@ -428,10 +443,14 @@ export default function ScalesPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="educacion" className="mt-0 pt-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <ScalesEducation scaleLogs={scaleLogs} allScales={allScales} practiceCount={practiceCount} />
+        </TabsContent>
+
         <TabsContent value="ejercicios" className="mt-0 pt-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="stat-card border-white/5 bg-primary/5 mb-6">
-            <h3 className="text-sm font-semibold flex items-center gap-2 mb-1"><BookOpen className="h-4 w-4 text-primary" /> Ejercicios de Escalas</h3>
-            <p className="text-xs text-muted-foreground">Guarda tus digitaciones, capturas de partituras y retos técnicos específicos aquí.</p>
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-1"><BookOpen className="h-4 w-4 text-primary" /> Scale Exercises</h3>
+            <p className="text-xs text-muted-foreground">Save your fingerings, sheet music captures and specific technical challenges here.</p>
           </div>
           <ExerciseSection defaultCategory="Escala" />
         </TabsContent>
