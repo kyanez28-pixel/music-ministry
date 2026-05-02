@@ -36,7 +36,7 @@ export default function HarmoniesPage() {
   const [fFolderName, setFFolderName] = useState('');
   const [fFolderColor, setFFolderColor] = useState(FOLDER_COLORS[0]);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
-  const [collapsedDiffGroups, setCollapsedDiffGroups] = useState<Set<string>>(new Set());
+  const [collapsedDiffGroups, setCollapsedDiffGroups] = useState<Set<string>>(new Set(['basico', 'intermedio', 'avanzado', 'custom']));
   const [filterFolder, setFilterFolder] = useState<string | 'todos'>('todos');
 
   const [showHarmonyForm, setShowHarmonyForm] = useState(false);
@@ -263,10 +263,10 @@ export default function HarmoniesPage() {
     const avanzado  = filtered.filter((h: any) => h.difficulty === 'avanzado');
     const custom    = filtered.filter((h: any) => !h.difficulty);
     return [
+      { key: 'custom',     label: 'Mis Armonías', dot: '✨', color: '#d4a843', items: custom },
       { key: 'basico',      label: 'Básico',       dot: '🟢', color: '#4ade80', items: basico },
       { key: 'intermedio',  label: 'Intermedio',   dot: '🟡', color: '#facc15', items: intermedio },
       { key: 'avanzado',   label: 'Avanzado',     dot: '🔴', color: '#f87171', items: avanzado },
-      { key: 'custom',     label: 'Mis Armonías', dot: '✨', color: '#d4a843', items: custom },
     ].filter(g => g.items.length > 0);
   }, [filtered]);
 
