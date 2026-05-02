@@ -40,6 +40,16 @@ export default function RhythmsPage() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const [filterFolder, setFilterFolder] = useState<string | 'todos'>('todos');
+  const [initialFoldersCollapsed, setInitialFoldersCollapsed] = useState(false);
+
+  // Auto-collapse all folders on first load
+  useEffect(() => {
+    if (!initialFoldersCollapsed && folders.length > 0) {
+      setCollapsedFolders(new Set(folders.map((f: any) => f.id)));
+      setInitialFoldersCollapsed(true);
+    }
+  }, [folders, initialFoldersCollapsed]);
+
   const [mFolderId, setMFolderId] = useState<string | null>(null);
   const [fFolderName, setFFolderName] = useState('');
   const [fFolderColor, setFFolderColor] = useState(FOLDER_COLORS[0]);

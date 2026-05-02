@@ -100,6 +100,15 @@ export default function MelodiesPage() {
   const [viewerImages, setViewerImages] = useState<MelodyImage[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [initialFoldersCollapsed, setInitialFoldersCollapsed] = useState(false);
+
+  // Auto-collapse all folders on first load
+  useEffect(() => {
+    if (!initialFoldersCollapsed && folders.length > 0) {
+      setCollapsedFolders(new Set(folders.map((f: MelodyFolder) => f.id)));
+      setInitialFoldersCollapsed(true);
+    }
+  }, [folders, initialFoldersCollapsed]);
 
   // Melody form state
   const [mName, setMName] = useState('');

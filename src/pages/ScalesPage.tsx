@@ -55,6 +55,15 @@ export default function ScalesPage() {
   const [tempVideoUrls, setTempVideoUrls] = useState<string[]>(['']);
   const [tempProgressions, setTempProgressions] = useState<string[]>(['']);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [initialFoldersCollapsed, setInitialFoldersCollapsed] = useState(false);
+
+  // Auto-collapse all folders on first load
+  useEffect(() => {
+    if (!initialFoldersCollapsed && folders.length > 0) {
+      setCollapsedFolders(new Set(folders.map((f: any) => f.id)));
+      setInitialFoldersCollapsed(true);
+    }
+  }, [folders, initialFoldersCollapsed]);
 
   const openVideoEdit = (e: React.MouseEvent, scale: any) => {
     e.stopPropagation(); e.preventDefault();
