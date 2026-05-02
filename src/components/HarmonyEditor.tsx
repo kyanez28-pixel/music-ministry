@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Play, Square, Trash2, Plus, X, ChevronUp, ChevronDown, Music, Check } from 'lucide-react';
+import { Play, Square, Trash2, Plus, X, ChevronUp, ChevronDown, Music, Check, Copy, ClipboardPaste, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { parseChord, getDegree } from '@/lib/music-utils';
 
@@ -149,6 +149,8 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
   const [description, setDescription] = useState(data.description || '');
   const [transposed,  setTransposed]  = useState(0); // semitones from original
 
+  const [clipboard, setClipboard] = useState<string[] | null>(null);
+
   // Chord picker state
   const [pickerPos, setPickerPos] = useState<{ sIdx: number; cIdx: number | 'new' } | null>(null);
 
@@ -222,8 +224,24 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
 
   // ── Section actions ──
   const addSection = () => setSections(p => [...p, { label: 'Nueva Sección', chords: [] }]);
+  const duplicateSection = (idx: number) => setSections(p => {
+    const s = p[idx];
+    const n = [...p];
+    n.splice(idx + 1, 0, { ...s, label: s.label + ' (Copia)' });
+    return n;
+  });
   const removeSection = (idx: number) => setSections(p => p.filter((_, i) => i !== idx));
   const updateSectionLabel = (idx: number, label: string) => setSections(p => p.map((s, i) => i === idx ? { ...s, label } : s));
+
+  const copySectionChords = (idx: number) => {
+    setClipboard([...sections[idx].chords]);
+    toast.info('Acordes copiados al portapapeles');
+  };
+  const pasteSectionChords = (idx: number) => {
+    if (!clipboard) return;
+    setSections(p => p.map((s, i) => i === idx ? { ...s, chords: [...s.chords, ...clipboard] } : s));
+    toast.success('Acordes pegados');
+  };
 
   // ── Chord actions ──
   const addChord = (sIdx: number, chord: string) => {
@@ -346,6 +364,24 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
                     placeholder="Intro, Verso, Coro..."
                     className="bg-transparent border-b border-white/10 hover:border-amber-500/40 focus:border-amber-500 text-sm font-bold text-amber-400 w-32 px-1 focus:outline-none transition-colors"
                   />
+                  
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => copySectionChords(sIdx)} title="Copiar acordes"
+                      className="p-1.5 rounded hover:bg-white/5 text-muted-foreground hover:text-amber-400 transition-all">
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                    {clipboard && (
+                      <button onClick={() => pasteSectionChords(sIdx)} title="Pegar acordes"
+                        className="p-1.5 rounded hover:bg-white/5 text-muted-foreground hover:text-green-400 transition-all">
+                        <ClipboardPaste className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button onClick={() => duplicateSection(sIdx)} title="Duplicar sección"
+                      className="p-1.5 rounded hover:bg-white/5 text-muted-foreground hover:text-blue-400 transition-all">
+                      <Layers className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
                   <div className="h-px flex-1 bg-white/5" />
                   <button onClick={() => removeSection(sIdx)} className="opacity-0 group-hover/section:opacity-100 p-1 text-red-400/60 hover:text-red-400 transition-opacity">
                     <Trash2 className="h-3.5 w-3.5" />
