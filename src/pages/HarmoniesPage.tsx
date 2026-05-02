@@ -458,7 +458,7 @@ export default function HarmoniesPage() {
                   )}
                 </div>
 
-                {customEditorData[harmony.id].sections ? (
+                {Array.isArray(customEditorData[harmony.id].sections) ? (
                   <div className="space-y-4">
                     {customEditorData[harmony.id].sections.map((section: any, sIdx: number) => (
                       <div key={sIdx} className="space-y-2">
@@ -466,8 +466,8 @@ export default function HarmoniesPage() {
                           <p className="text-[9px] font-bold text-amber-500/50 uppercase tracking-widest px-1">{section.label}</p>
                         )}
                         <div className="flex flex-wrap gap-1.5">
-                          {section.chords.map((chord: string, cIdx: number) => {
-                            const degree = getDegree(chord, customEditorData[harmony.id].musicalKey);
+                          {Array.isArray(section.chords) && section.chords.map((chord: string, cIdx: number) => {
+                            const degree = getDegree(chord, customEditorData[harmony.id].musicalKey || 'C');
                             return (
                               <div key={cIdx} className="flex flex-col items-center justify-center min-w-[38px] px-1.5 py-1 rounded-md bg-amber-500/5 border border-amber-500/20 text-amber-400/90">
                                 <span className="text-[9px] font-bold opacity-60 mb-0.5">{chord}</span>
@@ -479,10 +479,10 @@ export default function HarmoniesPage() {
                       </div>
                     ))}
                   </div>
-                ) : customEditorData[harmony.id].chords ? (
+                ) : Array.isArray(customEditorData[harmony.id].chords) ? (
                   <div className="flex flex-wrap gap-2">
                     {customEditorData[harmony.id].chords.map((chord: string, idx: number) => {
-                      const degree = getDegree(chord, customEditorData[harmony.id].musicalKey);
+                      const degree = getDegree(chord, customEditorData[harmony.id].musicalKey || 'C');
                       return (
                         <div key={idx} className="flex flex-col items-center justify-center min-w-[42px] px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-sm">
                           <span className="text-[10px] font-bold opacity-70 mb-0.5">{chord}</span>
