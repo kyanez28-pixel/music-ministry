@@ -62,6 +62,15 @@ export default function HarmoniesPage() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [playingHarmonyId, setPlayingHarmonyId] = useState<string | null>(null);
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
+  const [initialFoldersCollapsed, setInitialFoldersCollapsed] = useState(false);
+
+  // Auto-collapse all folders on first load
+  useEffect(() => {
+    if (!initialFoldersCollapsed && folders.length > 0) {
+      setCollapsedFolders(new Set(folders.map((f: any) => f.id)));
+      setInitialFoldersCollapsed(true);
+    }
+  }, [folders, initialFoldersCollapsed]);
 
   const DIFFICULTY_CONFIG = {
     basico:      { label: 'Básico',       color: '#4ade80', dot: '🟢' },
