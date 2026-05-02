@@ -66,11 +66,17 @@ function playChordAudio(chord: string, ctx: AudioContext, t: number, dur: number
 
 
 // ── Data Types ────────────────────────────────────────────────────
-export interface HarmonyEditorData {
+export interface HarmonySection {
+  label: string;
   chords: string[];
+}
+
+export interface HarmonyEditorData {
+  sections: HarmonySection[];
   bpm: number;
   musicalKey: string;
   description: string;
+  chords?: string[]; // Legacy support
 }
 
 interface Props {
@@ -137,14 +143,14 @@ function ChordPicker({ initial, onConfirm, onCancel }: {
 // ── Main Editor ───────────────────────────────────────────────────
 export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onSave, onDelete }: Props) {
   const [name,        setName]        = useState(harmonyName);
-  const [chords,      setChords]      = useState<string[]>(data.chords.length ? data.chords : []);
+  const [sections,    setSections]    = useState<HarmonySection[]>([]);
   const [bpm,         setBpm]         = useState(data.bpm || 80);
   const [musicalKey,  setMusicalKey]  = useState(data.musicalKey || 'C');
   const [description, setDescription] = useState(data.description || '');
   const [transposed,  setTransposed]  = useState(0); // semitones from original
 
   // Chord picker state
-  const [pickerIdx, setPickerIdx] = useState<number | 'new' | null>(null);
+  const [pickerPos, setPickerPos] = useState<{ sIdx: number; cIdx: number | 'new' } | null>(null);
 
   // Audio
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -155,18 +161,29 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
   useEffect(() => {
     if (open) {
       setName(harmonyName);
-      setChords(data.chords.length ? data.chords : []);
       setBpm(data.bpm || 80);
       setMusicalKey(data.musicalKey || 'C');
       setDescription(data.description || '');
       setTransposed(0);
-      setPickerIdx(null);
+      setPickerPos(null);
+
+      // Migration/Initialization
+      if (data.sections && data.sections.length > 0) {
+        setSections(data.sections);
+      } else if (data.chords && data.chords.length > 0) {
+        setSections([{ label: 'General', chords: data.chords }]);
+      } else {
+        setSections([{ label: 'Intro', chords: [] }]);
+      }
     }
   }, [open, harmonyId]);
 
   // ── Transpose ──
   const doTranspose = (delta: number) => {
-    setChords(prev => prev.map(c => transposeChord(c, delta)));
+    setSections(prev => prev.map(s => ({
+      ...s,
+      chords: s.chords.map(c => transposeChord(c, delta))
+    })));
     setTransposed(prev => prev + delta);
     const newKey = transposeChord(musicalKey, delta);
     setMusicalKey(newKey);
@@ -177,7 +194,10 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
     const newP = parseChord(newVal);
     if (oldP && newP) {
       const delta = newP.rootIdx - oldP.rootIdx;
-      setChords(prev => prev.map(c => transposeChord(c, delta)));
+      setSections(prev => prev.map(s => ({
+        ...s,
+        chords: s.chords.map(c => transposeChord(c, delta))
+      })));
     }
     setMusicalKey(newVal);
   };
@@ -185,7 +205,8 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
   // ── Playback ──
   const playAll = async () => {
     if (playing) { stopRef.current = true; return; }
-    if (chords.length === 0) return;
+    const allChords = sections.flatMap(s => s.chords);
+    if (allChords.length === 0) return;
     stopRef.current = false;
     setPlaying(true);
     if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
@@ -193,20 +214,34 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
     if (ctx.state === 'suspended') await ctx.resume();
     const secPerBeat = 60 / bpm;
     const now = ctx.currentTime + 0.05;
-    chords.forEach((c, i) => playChordAudio(c, ctx, now + i * secPerBeat * 2, secPerBeat * 2));
-    const total = chords.length * secPerBeat * 2 * 1000;
+    allChords.forEach((c, i) => playChordAudio(c, ctx, now + i * secPerBeat * 2, secPerBeat * 2));
+    const total = allChords.length * secPerBeat * 2 * 1000;
     setTimeout(() => { if (!stopRef.current) setPlaying(false); }, total);
   };
   const stopAll = () => { stopRef.current = true; setPlaying(false); };
 
+  // ── Section actions ──
+  const addSection = () => setSections(p => [...p, { label: 'Nueva Sección', chords: [] }]);
+  const removeSection = (idx: number) => setSections(p => p.filter((_, i) => i !== idx));
+  const updateSectionLabel = (idx: number, label: string) => setSections(p => p.map((s, i) => i === idx ? { ...s, label } : s));
+
   // ── Chord actions ──
-  const addChord    = (chord: string) => { setChords(p => [...p, chord]); setPickerIdx(null); };
-  const editChord   = (idx: number, chord: string) => { setChords(p => p.map((c, i) => i === idx ? chord : c)); setPickerIdx(null); };
-  const removeChord = (idx: number) => { setChords(p => p.filter((_, i) => i !== idx)); setPickerIdx(null); };
+  const addChord = (sIdx: number, chord: string) => {
+    setSections(prev => prev.map((s, i) => i === sIdx ? { ...s, chords: [...s.chords, chord] } : s));
+    setPickerPos(null);
+  };
+  const editChord = (sIdx: number, cIdx: number, chord: string) => {
+    setSections(prev => prev.map((s, i) => i === sIdx ? { ...s, chords: s.chords.map((c, j) => j === cIdx ? chord : c) } : s));
+    setPickerPos(null);
+  };
+  const removeChord = (sIdx: number, cIdx: number) => {
+    setSections(prev => prev.map((s, i) => i === sIdx ? { ...s, chords: s.chords.filter((_, j) => j !== cIdx) } : s));
+    setPickerPos(null);
+  };
 
   const handleSave = () => {
     if (!name.trim()) { toast.error('Escribe un nombre'); return; }
-    onSave(name.trim(), { chords, bpm, musicalKey, description });
+    onSave(name.trim(), { sections, bpm, musicalKey, description });
   };
 
   const handleDelete = () => {
@@ -292,74 +327,94 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
             </div>
           </div>
 
-          {/* ── Chord Progression ── */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">Progresión de Acordes</p>
-              <span className="text-xs text-muted-foreground">{chords.length} acordes</span>
+          {/* ── Sections Progression ── */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">Estructura y Progresión</p>
+              <Button variant="outline" size="sm" onClick={addSection} className="h-7 text-[10px] bg-white/5 border-amber-500/20 text-amber-400 hover:bg-amber-500/10">
+                <Plus className="h-3 w-3 mr-1" /> Agregar Sección
+              </Button>
             </div>
 
-            {/* Chord chips */}
-            <div className="flex flex-wrap gap-2 mb-3 min-h-[48px] p-3 rounded-xl bg-black/20 border border-white/5">
-              {chords.length === 0 && (
-                <p className="text-xs text-muted-foreground italic self-center">Agrega acordes con el botón +</p>
-              )}
-              {chords.map((chord, idx) => {
-                const degree = getDegree(chord, musicalKey);
-                return (
-                  <div key={idx} className={`group relative flex flex-col items-center px-4 py-2 rounded-xl border transition-all cursor-pointer ${
-                    pickerIdx === idx
-                      ? 'border-amber-500/60 bg-amber-500/15 shadow-lg shadow-amber-500/10'
-                      : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8'
-                  }`}
-                    onClick={() => setPickerIdx(pickerIdx === idx ? null : idx)}>
-                    <span className="text-base font-bold text-foreground">{chord}</span>
-                    {degree && <span className="text-[10px] text-amber-500/60 font-mono mt-0.5">{degree}</span>}
-                    <button onClick={e => { e.stopPropagation(); removeChord(idx); }}
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
-                      <X className="h-3 w-3" />
-                    </button>
+            {sections.map((section, sIdx) => (
+              <div key={sIdx} className="relative p-4 rounded-xl border border-white/5 bg-white/2 space-y-3 group/section">
+                {/* Section Header */}
+                <div className="flex items-center gap-3">
+                  <input
+                    value={section.label}
+                    onChange={e => updateSectionLabel(sIdx, e.target.value)}
+                    placeholder="Intro, Verso, Coro..."
+                    className="bg-transparent border-b border-white/10 hover:border-amber-500/40 focus:border-amber-500 text-sm font-bold text-amber-400 w-32 px-1 focus:outline-none transition-colors"
+                  />
+                  <div className="h-px flex-1 bg-white/5" />
+                  <button onClick={() => removeSection(sIdx)} className="opacity-0 group-hover/section:opacity-100 p-1 text-red-400/60 hover:text-red-400 transition-opacity">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {/* Section Chords */}
+                <div className="flex flex-wrap gap-2 min-h-[48px] p-3 rounded-lg bg-black/20 border border-white/5">
+                  {section.chords.map((chord, cIdx) => {
+                    const degree = getDegree(chord, musicalKey);
+                    const isActive = pickerPos?.sIdx === sIdx && pickerPos?.cIdx === cIdx;
+                    return (
+                      <div key={cIdx} className={`group relative flex flex-col items-center px-4 py-2 rounded-xl border transition-all cursor-pointer ${
+                        isActive
+                          ? 'border-amber-500/60 bg-amber-500/15 shadow-lg shadow-amber-500/10'
+                          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8'
+                      }`}
+                        onClick={() => setPickerPos(isActive ? null : { sIdx, cIdx })}>
+                        <span className="text-base font-bold text-foreground leading-none">{chord}</span>
+                        {degree && <span className="text-[10px] text-amber-500/60 font-mono mt-1 leading-none">{degree}</span>}
+                        <button onClick={e => { e.stopPropagation(); removeChord(sIdx, cIdx); }}
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <button onClick={() => setPickerPos(pickerPos?.sIdx === sIdx && pickerPos?.cIdx === 'new' ? null : { sIdx, cIdx: 'new' })}
+                    className="flex items-center justify-center w-10 h-10 rounded-xl border border-dashed border-white/20 hover:border-amber-400/40 hover:bg-amber-400/5 text-muted-foreground hover:text-amber-400 transition-all">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Picker for this section */}
+                {pickerPos?.sIdx === sIdx && (
+                  <div className="pt-2">
+                    <ChordPicker
+                      initial={typeof pickerPos.cIdx === 'number' ? section.chords[pickerPos.cIdx] : undefined}
+                      onConfirm={chord => typeof pickerPos.cIdx === 'number' ? editChord(sIdx, pickerPos.cIdx, chord) : addChord(sIdx, chord)}
+                      onCancel={() => setPickerPos(null)}
+                    />
                   </div>
-                );
-              })}
-              <button onClick={() => setPickerIdx(pickerIdx === 'new' ? null : 'new')}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-dashed border-white/20 hover:border-amber-400/40 hover:bg-amber-400/5 text-muted-foreground hover:text-amber-400 transition-all text-sm">
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Inline chord picker */}
-            {pickerIdx !== null && (
-              <ChordPicker
-                initial={typeof pickerIdx === 'number' ? chords[pickerIdx] : undefined}
-                onConfirm={chord => typeof pickerIdx === 'number' ? editChord(pickerIdx, chord) : addChord(chord)}
-                onCancel={() => setPickerIdx(null)}
-              />
-            )}
+                )}
+              </div>
+            ))}
           </div>
 
           {/* ── Playback ── */}
           <div className="rounded-xl border border-white/10 bg-gradient-to-r from-white/3 to-transparent p-4">
             <div className="flex items-center gap-4">
-              <button onClick={playing ? stopAll : playAll} disabled={chords.length === 0}
+              <button onClick={playing ? stopAll : playAll} disabled={sections.every(s => s.chords.length === 0)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
                   playing
                     ? 'bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30'
                     : 'bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 disabled:opacity-30 disabled:cursor-not-allowed'
                 }`}>
                 {playing ? <Square className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
-                {playing ? 'Detener' : 'Escuchar progresión'}
+                {playing ? 'Detener' : 'Escuchar canción completa'}
               </button>
               {playing && (
                 <div className="flex gap-1">
-                  {chords.map((_, i) => (
-                    <div key={i} className="w-2 h-5 rounded-full bg-primary/30 animate-pulse" style={{ animationDelay: `${i * 0.1}s` }} />
+                  {sections.flatMap(s => s.chords).map((_, i) => (
+                    <div key={i} className="w-1.5 h-4 rounded-full bg-primary/30 animate-pulse" style={{ animationDelay: `${i * 0.1}s` }} />
                   ))}
                 </div>
               )}
-              {!playing && chords.length > 0 && (
+              {!playing && sections.some(s => s.chords.length > 0) && (
                 <p className="text-xs text-muted-foreground">
-                  ~{((chords.length * 2 * 60) / bpm).toFixed(1)}s a {bpm} BPM
+                  ~{((sections.flatMap(s => s.chords).length * 2 * 60) / bpm).toFixed(1)}s a {bpm} BPM
                 </p>
               )}
             </div>
