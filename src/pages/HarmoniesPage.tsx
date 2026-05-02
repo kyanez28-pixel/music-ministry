@@ -34,6 +34,7 @@ export default function HarmoniesPage() {
   const [fFolderName, setFFolderName] = useState('');
   const [fFolderColor, setFFolderColor] = useState(FOLDER_COLORS[0]);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [collapsedDiffGroups, setCollapsedDiffGroups] = useState<Set<string>>(new Set());
   const [filterFolder, setFilterFolder] = useState<string | 'todos'>('todos');
 
   const [showHarmonyForm, setShowHarmonyForm] = useState(false);
@@ -228,14 +229,26 @@ export default function HarmoniesPage() {
     .filter((h: any) => filterFolder === 'todos' || h.folder_id === filterFolder),
   [filterCategory, search, allHarmonies, filterFolder]);
 
-  const groupedHarmonies = useMemo(() => {
-    const groups = (folders || []).map((f: any) => ({
-      folder: f,
-      items: filtered.filter((h: any) => h.folder_id === f.id),
-    }));
-    const unfoldered = filtered.filter((h: any) => !h.folder_id);
-    return { groups, unfoldered };
-  }, [folders, filtered]);
+  const difficultyGroups = useMemo(() => {
+    const basico    = filtered.filter((h: any) => h.difficulty === 'basico');
+    const intermedio = filtered.filter((h: any) => h.difficulty === 'intermedio');
+    const avanzado  = filtered.filter((h: any) => h.difficulty === 'avanzado');
+    const custom    = filtered.filter((h: any) => !h.difficulty);
+    return [
+      { key: 'basico',      label: 'Básico',       dot: '🟢', color: '#4ade80', items: basico },
+      { key: 'intermedio',  label: 'Intermedio',   dot: '🟡', color: '#facc15', items: intermedio },
+      { key: 'avanzado',   label: 'Avanzado',     dot: '🔴', color: '#f87171', items: avanzado },
+      { key: 'custom',     label: 'Mis Armonías', dot: '✨', color: '#d4a843', items: custom },
+    ].filter(g => g.items.length > 0);
+  }, [filtered]);
+
+  const toggleDiffGroup = (key: string) => {
+    setCollapsedDiffGroups(prev => {
+      const n = new Set(prev);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  };
 
   const practiceCount = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -479,8 +492,7 @@ export default function HarmoniesPage() {
               </TabsTrigger>
             </TabsList>
             
-            <button onClick={() => { resetFolderForm(); setShowFolderForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="Nueva carpeta"><FolderPlus className="h-4 w-4" /></button>
-            <button onClick={() => { resetHarmonyForm(); setShowHarmonyForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="Nueva armonía"><Plus className="h-4 w-4" /></button>
+            <button onClick={() => { resetHarmonyForm(); setShowHarmonyForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="Nueva armonía personalizada"><Plus className="h-4 w-4" /></button>
             <button
               onClick={saveSession}
               disabled={checkedCount === 0}
@@ -535,48 +547,97 @@ export default function HarmoniesPage() {
             </select>
           </div>
 
-          {/* Folder filter tabs */}
-          {folders.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              <button onClick={() => setFilterFolder('todos')} className={`chip text-xs ${filterFolder === 'todos' ? 'chip-active' : ''}`}>Todas</button>
-              {folders.map((f: any) => (
-                <button key={f.id} onClick={() => setFilterFolder(f.id)} className={`chip text-xs ${filterFolder === f.id ? 'chip-active' : ''}`} style={filterFolder !== f.id ? { borderLeft: `3px solid ${f.color}` } : {}}>
-                  {f.name}
-                </button>
-              ))}
-            </div>
-          )}
 
-          {/* Harmony list */}
-          <div className="space-y-6">
-            {groupedHarmonies.groups.map(({ folder, items }: { folder: any, items: any[] }) => (
-              <div key={folder.id}>
-                <button
-                  onClick={() => setCollapsedFolders((prev: Set<string>) => { const n = new Set(prev); n.has(folder.id) ? n.delete(folder.id) : n.add(folder.id); return n; })}
-                  className="flex items-center gap-2 group w-full text-left mb-3"
-                >
-                  {collapsedFolders.has(folder.id) ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
-                  <span className="section-title text-base">{folder.name}</span>
-                  <span className="text-xs text-muted-foreground">({items.length})</span>
-                  <button onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEditFolder(folder); }} className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground">editar</button>
-                </button>
-                {!collapsedFolders.has(folder.id) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ml-5">
-                    {items.map((h: any) => renderHarmonyCard(h))}
-                  </div>
-                )}
-              </div>
-            ))}
 
-            {groupedHarmonies.unfoldered.length > 0 && (
-              <div>
-                {folders.length > 0 && <h3 className="section-title text-base mb-3 opacity-70">Otras Armonías ({groupedHarmonies.unfoldered.length})</h3>}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {groupedHarmonies.unfoldered.map((h: any) => renderHarmonyCard(h))}
+          {/* Harmony list — grouped by difficulty */}
+          <div className="space-y-3">
+            {difficultyGroups.map(group => {
+              const isCollapsed = collapsedDiffGroups.has(group.key);
+              const checkedInGroup = group.items.filter((h: any) => todayChecked.has(h.id)).length;
+              return (
+                <div key={group.key} className="rounded-xl border border-white/5 overflow-hidden">
+                  {/* Group header */}
+                  <button
+                    onClick={() => toggleDiffGroup(group.key)}
+                    className="flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-white/5 transition-colors"
+                    style={{ borderLeft: `4px solid ${group.color}` }}
+                  >
+                    {isCollapsed
+                      ? <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                    <span className="text-base">{group.dot}</span>
+                    <span className="font-semibold text-sm" style={{ color: group.color }}>{group.label}</span>
+                    <span className="text-xs text-muted-foreground ml-1">({group.items.length} armonías)</span>
+                    {checkedInGroup > 0 && (
+                      <span className="ml-auto text-xs font-mono px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: `${group.color}20`, color: group.color }}>
+                        {checkedInGroup} hoy
+                      </span>
+                    )}
+                    {group.key === 'custom' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); resetFolderForm(); setShowFolderForm(true); }}
+                        className="ml-auto p-1 rounded text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors text-xs flex items-center gap-1"
+                        title="Nueva carpeta"
+                      >
+                        + carpeta
+                      </button>
+                    )}
+                  </button>
+
+                  {/* Group items */}
+                  {!isCollapsed && (
+                    <div className="p-3 bg-black/10">
+                      {group.key === 'custom' && folders.length > 0 ? (
+                        // Custom: show by folder then unfoldered
+                        <div className="space-y-4">
+                          {folders.map((f: any) => {
+                            const folderItems = group.items.filter((h: any) => h.folder_id === f.id);
+                            if (folderItems.length === 0) return null;
+                            const folderCollapsed = collapsedFolders.has(f.id);
+                            return (
+                              <div key={f.id}>
+                                <button
+                                  onClick={() => setCollapsedFolders(prev => { const n = new Set(prev); n.has(f.id) ? n.delete(f.id) : n.add(f.id); return n; })}
+                                  className="flex items-center gap-2 mb-2 group/folder"
+                                >
+                                  {folderCollapsed ? <ChevronRight className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
+                                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: f.color }} />
+                                  <span className="text-sm font-medium text-muted-foreground">{f.name}</span>
+                                  <span className="text-xs text-muted-foreground/60">({folderItems.length})</span>
+                                  <button onClick={(e) => { e.stopPropagation(); openEditFolder(f); }} className="ml-1 text-[10px] text-muted-foreground opacity-0 group-hover/folder:opacity-100 transition-opacity hover:text-foreground">editar</button>
+                                </button>
+                                {!folderCollapsed && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ml-4">
+                                    {folderItems.map((h: any) => renderHarmonyCard(h))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {/* Unfoldered custom */}
+                          {(() => {
+                            const unfoldered = group.items.filter((h: any) => !h.folder_id);
+                            return unfoldered.length > 0 ? (
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-2 ml-1">Sin carpeta ({unfoldered.length})</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {unfoldered.map((h: any) => renderHarmonyCard(h))}
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {group.items.map((h: any) => renderHarmonyCard(h))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })}
           </div>
 
           {filtered.length === 0 && (
