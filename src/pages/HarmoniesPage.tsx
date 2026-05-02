@@ -437,16 +437,28 @@ export default function HarmoniesPage() {
 
             {/* Professional Chord & Degree Display */}
             {harmony.type === 'custom' && customEditorData[harmony.id] && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {customEditorData[harmony.id].chords.map((chord, idx) => {
-                  const degree = getDegree(chord, customEditorData[harmony.id].musicalKey);
-                  return (
-                    <div key={idx} className="flex flex-col items-center justify-center min-w-[42px] px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-sm">
-                      <span className="text-[10px] font-bold opacity-70 mb-0.5">{chord}</span>
-                      <span className="text-lg font-black leading-none tracking-tighter">{degree}</span>
-                    </div>
-                  );
-                })}
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-amber-500/60 uppercase tracking-widest bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10">
+                    Tonalidad: {customEditorData[harmony.id].musicalKey}
+                  </span>
+                  {customEditorData[harmony.id].bpm && (
+                    <span className="text-[10px] font-bold text-muted-foreground bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                      {customEditorData[harmony.id].bpm} BPM
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {customEditorData[harmony.id].chords.map((chord, idx) => {
+                    const degree = getDegree(chord, customEditorData[harmony.id].musicalKey);
+                    return (
+                      <div key={idx} className="flex flex-col items-center justify-center min-w-[42px] px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-sm">
+                        <span className="text-[10px] font-bold opacity-70 mb-0.5">{chord}</span>
+                        <span className="text-lg font-black leading-none tracking-tighter">{degree}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
