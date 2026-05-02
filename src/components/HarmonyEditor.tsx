@@ -70,6 +70,17 @@ function playChordAudio(chord: string, ctx: AudioContext, t: number, dur: number
   });
 }
 
+function getDegree(chord: string, keyRoot: string) {
+  const c = parseChord(chord);
+  const k = parseChord(keyRoot);
+  if (!c || !k) return '';
+  const diff = (c.rootIdx - k.rootIdx + 12) % 12;
+  const degrees = ['I', 'bII', 'II', 'bIII', 'III', 'IV', 'bV', 'V', 'bVI', 'VI', 'bVII', 'VII'];
+  let deg = degrees[diff];
+  if (c.type.startsWith('m') && !c.type.startsWith('maj')) deg = deg.toLowerCase();
+  return deg;
+}
+
 // ── Data Types ────────────────────────────────────────────────────
 export interface HarmonyEditorData {
   chords: string[];
@@ -299,20 +310,24 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
               {chords.length === 0 && (
                 <p className="text-xs text-muted-foreground italic self-center">Agrega acordes con el botón +</p>
               )}
-              {chords.map((chord, idx) => (
-                <div key={idx} className={`group relative flex items-center gap-1 px-3 py-2 rounded-xl border transition-all cursor-pointer ${
-                  pickerIdx === idx
-                    ? 'border-amber-500/60 bg-amber-500/15 shadow-lg shadow-amber-500/10'
-                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8'
-                }`}
-                  onClick={() => setPickerIdx(pickerIdx === idx ? null : idx)}>
-                  <span className="text-base font-bold text-foreground">{chord}</span>
-                  <button onClick={e => { e.stopPropagation(); removeChord(idx); }}
-                    className="opacity-0 group-hover:opacity-100 ml-1 text-red-400 hover:text-red-300 transition-opacity">
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+              {chords.map((chord, idx) => {
+                const degree = getDegree(chord, musicalKey);
+                return (
+                  <div key={idx} className={`group relative flex flex-col items-center px-4 py-2 rounded-xl border transition-all cursor-pointer ${
+                    pickerIdx === idx
+                      ? 'border-amber-500/60 bg-amber-500/15 shadow-lg shadow-amber-500/10'
+                      : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/8'
+                  }`}
+                    onClick={() => setPickerIdx(pickerIdx === idx ? null : idx)}>
+                    <span className="text-base font-bold text-foreground">{chord}</span>
+                    {degree && <span className="text-[10px] text-amber-500/60 font-mono mt-0.5">{degree}</span>}
+                    <button onClick={e => { e.stopPropagation(); removeChord(idx); }}
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
               <button onClick={() => setPickerIdx(pickerIdx === 'new' ? null : 'new')}
                 className="flex items-center gap-1 px-3 py-2 rounded-xl border border-dashed border-white/20 hover:border-amber-400/40 hover:bg-amber-400/5 text-muted-foreground hover:text-amber-400 transition-all text-sm">
                 <Plus className="h-4 w-4" />
