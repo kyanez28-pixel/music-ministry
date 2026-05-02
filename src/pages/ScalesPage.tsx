@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSessions, useScaleLogs, useScales, useScaleFolders, useScaleImages } from '@/hooks/use-music-data';
 import { generateId, getTodayEC } from '@/lib/music-utils';
 import { PREDEFINED_SCALES, SCALE_TYPE_OPTIONS, NOTES, NOTE_EN, SCALE_THEORY } from '@/lib/predefined-scales';

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSessions, useHarmonyLogs, useHarmonies, useHarmonyFolders, useHarmonyImages } from '@/hooks/use-music-data';
 import { generateId, getTodayEC, getDegree } from '@/lib/music-utils';
 import { PREDEFINED_HARMONIES, HARMONY_CATEGORIES } from '@/lib/predefined-harmonies';
