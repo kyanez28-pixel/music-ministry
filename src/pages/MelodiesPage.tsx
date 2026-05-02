@@ -375,7 +375,7 @@ export default function MelodiesPage() {
       .map(l => (melodies || []).find(m => m.id === l.melody_id)?.name)
       .filter(Boolean).join(', ');
     const notesText = `Melodías (${todayLogs.length}): ${names}`;
-    const duration = todayLogs.length * 5;
+    const duration = 0;
 
     const existingIdx = (sessions || []).findIndex(
       (s: any) => s.date === today && s.instrument === practiceInstrument && s.categories.includes('melodias')
