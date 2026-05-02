@@ -244,6 +244,7 @@ export default function HarmoniesPage() {
       category: h.type || 'otro',
       folder_id: h.folder_id,
       video_url: h.video_url,
+      type: 'custom',
     }));
     return [...PREDEFINED_HARMONIES, ...mappedCustom];
   }, [customHarmonies]);
