@@ -172,6 +172,16 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
     setMusicalKey(newKey);
   };
 
+  const handleKeyChange = (newVal: string) => {
+    const oldP = parseChord(musicalKey);
+    const newP = parseChord(newVal);
+    if (oldP && newP) {
+      const delta = newP.rootIdx - oldP.rootIdx;
+      setChords(prev => prev.map(c => transposeChord(c, delta)));
+    }
+    setMusicalKey(newVal);
+  };
+
   // ── Playback ──
   const playAll = async () => {
     if (playing) { stopRef.current = true; return; }
@@ -231,7 +241,7 @@ export function HarmonyEditor({ open, harmonyId, harmonyName, data, onClose, onS
           <div className="flex flex-wrap gap-3 items-end">
             <div>
               <label className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1.5 block">Tonalidad</label>
-              <select value={musicalKey} onChange={e => setMusicalKey(e.target.value)}
+              <select value={musicalKey} onChange={e => handleKeyChange(e.target.value)}
                 className="bg-white/5 border border-white/10 rounded-md px-3 py-2 text-sm text-foreground">
                 {CHROMATIC.flatMap(n => [
                   <option key={n+'maj'} value={n}>{n} Mayor</option>,
