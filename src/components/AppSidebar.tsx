@@ -32,9 +32,7 @@ const generalItems = [
   { title: 'Historial', url: '/history', icon: List, desc: 'Revisa tus sesiones pasadas' },
 ];
 
-const ministryItems = [
-  { title: 'Setlist Semanal', url: '/setlist', icon: Cross, desc: 'Canciones asignadas para esta semana' },
-];
+
 
 const studyItems = [
   { title: 'Escalas', url: '/scales', icon: Music2, desc: 'Biblioteca de escalas musicales' },
@@ -140,7 +138,7 @@ export function AppSidebar() {
       </div>
       <SidebarContent className="py-2">
         {renderGroup('General', generalItems)}
-        {renderGroup('Ministerio', ministryItems)}
+
         
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground text-xs uppercase tracking-wider font-body flex justify-between items-center w-full">
