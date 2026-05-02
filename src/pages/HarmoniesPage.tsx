@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useSessions, useHarmonyLogs, useHarmonies, useHarmonyFolders, useHarmonyImages } from '@/hooks/use-music-data';
-import { generateId, getTodayEC } from '@/lib/music-utils';
+import { generateId, getTodayEC, getDegree } from '@/lib/music-utils';
 import { PREDEFINED_HARMONIES, HARMONY_CATEGORIES } from '@/lib/predefined-harmonies';
 import type { Instrument } from '@/types/music';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -435,14 +435,18 @@ export default function HarmoniesPage() {
               )}
             </div>
 
-            {/* Professional Chord Sequence Display */}
+            {/* Professional Chord & Degree Display */}
             {harmony.type === 'custom' && customEditorData[harmony.id] && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {customEditorData[harmony.id].chords.map((chord, idx) => (
-                  <span key={idx} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    {chord}
-                  </span>
-                ))}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {customEditorData[harmony.id].chords.map((chord, idx) => {
+                  const degree = getDegree(chord, customEditorData[harmony.id].musicalKey);
+                  return (
+                    <div key={idx} className="flex flex-col items-center justify-center min-w-[42px] px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-sm">
+                      <span className="text-[10px] font-bold opacity-70 mb-0.5">{chord}</span>
+                      <span className="text-lg font-black leading-none tracking-tighter">{degree}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

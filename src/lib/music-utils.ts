@@ -126,3 +126,24 @@ export function getActiveDaysInLastN(sessions: PracticeSession[], n: number): nu
   const cutoffStr = cutoff.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
   return new Set(sessions.filter(s => s.date >= cutoffStr).map(s => s.date)).size;
 }
+
+export function parseChord(chord: string) {
+  const m = chord.match(/^([A-G][#b]?)(.*)/);
+  if (!m) return null;
+  const CHROMATIC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const flat: Record<string,string> = { Db:'C#', Eb:'D#', Gb:'F#', Ab:'G#', Bb:'A#' };
+  const root = flat[m[1]] ?? m[1];
+  const rootIdx = CHROMATIC.indexOf(root);
+  return rootIdx === -1 ? null : { rootIdx, type: m[2] };
+}
+
+export function getDegree(chord: string, keyRoot: string) {
+  const c = parseChord(chord);
+  const k = parseChord(keyRoot);
+  if (!c || !k) return '';
+  const diff = (c.rootIdx - k.rootIdx + 12) % 12;
+  const degrees = ['I', 'bII', 'II', 'bIII', 'III', 'IV', 'bV', 'V', 'bVI', 'VI', 'bVII', 'VII'];
+  let deg = degrees[diff];
+  if (c.type.startsWith('m') && !c.type.startsWith('maj')) deg = deg.toLowerCase();
+  return deg;
+}
