@@ -2,13 +2,13 @@ import { useState, useMemo, useRef } from 'react';
 import { useSessions, useHarmonyLogs, useHarmonies, useHarmonyFolders, useHarmonyImages } from '@/hooks/use-music-data';
 import { generateId, getTodayEC } from '@/lib/music-utils';
 import { PREDEFINED_HARMONIES, HARMONY_CATEGORIES } from '@/lib/predefined-harmonies';
-import type { Instrument, HarmonyPracticeLog } from '@/types/music';
+import type { Instrument } from '@/types/music';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, Link2, ExternalLink } from 'lucide-react';
+import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, Link2, Lightbulb, Star, Music2 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -54,6 +54,21 @@ export default function HarmoniesPage() {
   const [tempProgressions, setTempProgressions] = useState<string[]>(['']);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [playingHarmonyId, setPlayingHarmonyId] = useState<string | null>(null);
+  const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
+
+  const DIFFICULTY_CONFIG = {
+    basico:      { label: 'Básico',       color: '#4ade80', dot: '🟢' },
+    intermedio:  { label: 'Intermedio',   color: '#facc15', dot: '🟡' },
+    avanzado:    { label: 'Avanzado',     color: '#f87171', dot: '🔴' },
+  } as const;
+
+  const CATEGORY_COLOR: Record<string, string> = {
+    progresiones: '#60a5fa',
+    cadencias: '#4ade80',
+    voicings: '#f472b6',
+    acordes_extendidos: '#a78bfa',
+    modulaciones: '#fb923c',
+  };
 
   const openVideoEdit = (e: React.MouseEvent, harmony: any) => {
     e.stopPropagation(); e.preventDefault();
@@ -289,62 +304,113 @@ export default function HarmoniesPage() {
     const progressions = progressionStr ? progressionStr.split('\n') : [];
     const hasVideo = urls.length > 0 || !!progressionStr;
     const isPlaying = playingHarmonyId === harmony.id;
+    const isTipOpen = expandedTipId === harmony.id;
+    const catColor = CATEGORY_COLOR[harmony.category] || '#d4a843';
+    const diff = DIFFICULTY_CONFIG[harmony.difficulty as keyof typeof DIFFICULTY_CONFIG];
+    const isMastered = count >= 5;
 
     return (
-      <div key={harmony.id} className={`stat-card transition-all ${
+      <div key={harmony.id} className={`stat-card transition-all duration-200 ${
         checked ? 'border-primary/40 bg-primary/10' : 'border-white/5 bg-white/5'
-      }`}>
-        <label className="flex items-center gap-3 cursor-pointer group">
-          <Checkbox checked={checked} onCheckedChange={() => toggleHarmony(harmony.id)} 
-            className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
+      }`} style={{ borderLeft: `3px solid ${catColor}40` }}>
+        {/* Main row */}
+        <div className="flex items-start gap-3">
+          <Checkbox
+            checked={checked}
+            onCheckedChange={() => toggleHarmony(harmony.id)}
+            className="mt-0.5 shrink-0 border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+          />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-1 mt-0.5">
-              <span className={`text-sm font-medium truncate flex items-center gap-1.5 ${checked ? 'text-primary' : 'text-foreground'}`}>
-                <span className="truncate">{harmony.name}</span>
-                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditHarmony(harmony); }} className="opacity-0 group-hover:opacity-40 hover:opacity-100 transition-opacity"><Pencil className="h-2.5 w-2.5" /></button>
-                
-                <div className="flex items-center gap-1 shrink-0">
-                  {allImages.some((img: any) => img.harmony_id === harmony.id) && (
-                    <ImageIcon className="h-3 w-3 text-primary/60" />
-                  )}
+            {/* Name + actions */}
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                {isMastered && <Star className="h-3 w-3 shrink-0 text-yellow-400 fill-yellow-400" title="¡Dominada!" />}
+                <span className={`text-sm font-semibold truncate ${checked ? 'text-primary' : 'text-foreground'}`}>
+                  {harmony.name}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {count > 0 && (
+                  <span className="text-[10px] text-muted-foreground font-mono bg-white/5 px-1.5 py-0.5 rounded-full">
+                    {count}×
+                  </span>
+                )}
+                {/* Tip button */}
+                {(harmony.tip || harmony.example) && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); e.preventDefault();
-                      if (hasVideo) setPlayingHarmonyId(isPlaying ? null : harmony.id);
-                      else openVideoEdit(e, harmony);
-                    }}
-                    className={`p-0.5 rounded transition-colors ${
-                      hasVideo
-                        ? isPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
-                        : 'text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-muted-foreground'
+                    onClick={(e) => { e.stopPropagation(); setExpandedTipId(isTipOpen ? null : harmony.id); }}
+                    className={`p-1 rounded-full transition-colors ${
+                      isTipOpen ? 'text-yellow-400 bg-yellow-400/10' : 'text-muted-foreground/40 hover:text-yellow-400 hover:bg-yellow-400/10'
                     }`}
-                    title={hasVideo ? (isPlaying ? 'Cerrar videos' : 'Ver videos') : 'Agregar video'}
+                    title="Ver teoría y ejemplos"
                   >
-                    <Play className="h-3.5 w-3.5" fill={hasVideo ? 'currentColor' : 'none'} />
+                    <Lightbulb className="h-3.5 w-3.5" />
                   </button>
-                  {hasVideo && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); openVideoEdit(e, harmony); }}
-                      className="p-0.5 rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary transition-all relative"
-                      title="Editar enlaces de video"
-                    >
-                      <Link2 className="h-3 w-3" />
-                      {urls.length > 1 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-[8px] text-white w-3 h-3 flex items-center justify-center rounded-full">
-                          {urls.length}
-                        </span>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </span>
-              {count > 0 && (
-                <span className="text-xs text-muted-foreground shrink-0 font-mono opacity-60">{count}×</span>
+                )}
+                {/* Video button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault();
+                    if (hasVideo) setPlayingHarmonyId(isPlaying ? null : harmony.id);
+                    else openVideoEdit(e, harmony);
+                  }}
+                  className={`p-1 rounded-full transition-colors ${
+                    hasVideo
+                      ? isPlaying ? 'text-red-400 bg-red-400/10' : 'text-red-500 hover:text-red-400 hover:bg-red-400/10'
+                      : 'text-muted-foreground/20 hover:text-muted-foreground hover:bg-white/5 opacity-0 group-hover:opacity-100'
+                  }`}
+                  title={hasVideo ? (isPlaying ? 'Cerrar videos' : 'Ver videos') : 'Agregar video'}
+                >
+                  <Play className="h-3.5 w-3.5" fill={hasVideo ? 'currentColor' : 'none'} />
+                </button>
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditHarmony(harmony); }}
+                  className="p-1 rounded-full text-muted-foreground/20 hover:text-muted-foreground hover:bg-white/5 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+
+            {/* Description + difficulty badge */}
+            <div className="flex items-center gap-2 mt-1">
+              {harmony.description && (
+                <p className="text-[11px] text-muted-foreground flex-1 truncate">{harmony.description}</p>
+              )}
+              {diff && (
+                <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0"
+                  style={{ backgroundColor: `${diff.color}20`, color: diff.color }}>
+                  {diff.dot} {diff.label}
+                </span>
               )}
             </div>
-            <Progress value={progressPct} className="h-0.5 mt-1.5 bg-white/5" />
-          </div>
-        </label>
 
+            <Progress value={progressPct} className="h-0.5 mt-2 bg-white/5" />
+          </div>
+        </div>
+
+        {/* Educational tip panel */}
+        {isTipOpen && (harmony.tip || harmony.example) && (
+          <div className="mt-3 rounded-lg border border-yellow-400/20 bg-yellow-400/5 p-3 animate-in slide-in-from-top-2 duration-200">
+            {harmony.tip && (
+              <div className="mb-2">
+                <p className="text-[10px] text-yellow-400/80 uppercase tracking-widest font-bold mb-1 flex items-center gap-1">
+                  <Lightbulb className="h-3 w-3" /> Teoría
+                </p>
+                <p className="text-xs text-foreground/80 leading-relaxed">{harmony.tip}</p>
+              </div>
+            )}
+            {harmony.example && (
+              <div>
+                <p className="text-[10px] text-green-400/80 uppercase tracking-widest font-bold mb-1 flex items-center gap-1">
+                  <Music2 className="h-3 w-3" /> Ejemplos
+                </p>
+                <p className="text-xs text-foreground/70 italic">{harmony.example}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Video player */}
         {isPlaying && hasVideo && (
           <div className="mt-3 flex flex-col gap-4 animate-in slide-in-from-top-2">
             {urls.map((url: string, idx: number) => {
@@ -434,6 +500,31 @@ export default function HarmoniesPage() {
               </button>
             ))}
           </div>
+
+          {/* Category theory banner */}
+          {filterCategory !== 'todos' && (() => {
+            const cat = HARMONY_CATEGORIES.find(c => c.key === filterCategory);
+            const catColor = CATEGORY_COLOR[filterCategory] || '#d4a843';
+            const catCount = filtered.length;
+            const masteredCount = filtered.filter((h: any) => (practiceCount[h.id] ?? 0) >= 5).length;
+            return cat ? (
+              <div className="rounded-xl border p-4 animate-in fade-in duration-200"
+                style={{ borderColor: `${catColor}30`, backgroundColor: `${catColor}08` }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: catColor }}>
+                      📖 {cat.label}
+                    </p>
+                    <p className="text-sm text-foreground/80 leading-relaxed">{(cat as any).description}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-lg font-bold" style={{ color: catColor }}>{masteredCount}/{catCount}</p>
+                    <p className="text-[10px] text-muted-foreground">dominadas</p>
+                  </div>
+                </div>
+              </div>
+            ) : null;
+          })()}
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2">
