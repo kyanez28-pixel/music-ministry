@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, Link2, Lightbulb, Star, Music2 } from 'lucide-react';
+import { Play, BookOpen, ListMusic, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Lightbulb, Star, Music2, Settings2 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,6 +17,8 @@ import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { ExerciseSection } from '@/components/ExerciseSection';
 import type { InstrumentDef } from '@/types/music';
 import { useInstruments } from '@/hooks/use-instruments';
+import { HarmonyEditor } from '@/components/HarmonyEditor';
+import type { HarmonyEditorData } from '@/components/HarmonyEditor';
 
 const FOLDER_COLORS = ['#d4a843', '#4ade80', '#60a5fa', '#f472b6', '#a78bfa', '#fb923c', '#34d399', '#e879f9'];
 
@@ -48,6 +50,10 @@ export default function HarmoniesPage() {
   const [search, setSearch] = useState('');
 
   const [harmonyProgressions, setHarmonyProgressions] = useLocalStorage<Record<string,string>>('kymusic_harmony_progressions', {});
+  const [customEditorData, setCustomEditorData] = useLocalStorage<Record<string, HarmonyEditorData>>('kymusic_custom_editor_data', {});
+
+  // Professional harmony editor
+  const [editorHarmony, setEditorHarmony] = useState<{id: string; name: string} | null>(null);
 
   // Video attachments
   const [editingVideoHarmony, setEditingVideoHarmony] = useState<{id: string, name: string} | null>(null);
@@ -138,6 +144,27 @@ export default function HarmoniesPage() {
     toast.success('Armonía guardada');
     resetHarmonyForm();
   };
+
+  const saveEditorHarmony = (name: string, data: HarmonyEditorData) => {
+    if (!editorHarmony) return;
+    setCustomHarmonies((prev: any[]) => prev.map((h: any) =>
+      h.id === editorHarmony.id ? { ...h, name, description: data.description } : h
+    ));
+    setCustomEditorData((prev: Record<string, HarmonyEditorData>) => ({ ...prev, [editorHarmony.id]: data }));
+    setEditorHarmony(null);
+    toast.success('✅ Armonía guardada');
+  };
+
+  const deleteEditorHarmony = () => {
+    if (!editorHarmony) return;
+    setCustomHarmonies((prev: any[]) => prev.filter((h: any) => h.id !== editorHarmony.id));
+    setCustomEditorData((prev: Record<string, HarmonyEditorData>) => {
+      const n = { ...prev }; delete n[editorHarmony.id]; return n;
+    });
+    setEditorHarmony(null);
+    toast.success('Armonía eliminada');
+  };
+
 
   const saveVideo = () => {
     if (editingVideoHarmony) {
@@ -360,6 +387,16 @@ export default function HarmoniesPage() {
                     <Lightbulb className="h-3.5 w-3.5" />
                   </button>
                 )}
+                {/* Professional Editor button for custom harmonies */}
+                {harmony.type === 'custom' && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditorHarmony({ id: harmony.id, name: harmony.name }); }}
+                    className="p-1 rounded-full text-amber-500/40 hover:text-amber-400 hover:bg-amber-400/10 transition-colors"
+                    title="Editor profesional"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {/* Video button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); e.preventDefault();
@@ -396,6 +433,17 @@ export default function HarmoniesPage() {
                 </span>
               )}
             </div>
+
+            {/* Professional Chord Sequence Display */}
+            {harmony.type === 'custom' && customEditorData[harmony.id] && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {customEditorData[harmony.id].chords.map((chord, idx) => (
+                  <span key={idx} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    {chord}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <Progress value={progressPct} className="h-0.5 mt-2 bg-white/5" />
           </div>
@@ -834,6 +882,19 @@ export default function HarmoniesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Professional Harmony Editor */}
+      {editorHarmony && (
+        <HarmonyEditor
+          open={!!editorHarmony}
+          harmonyId={editorHarmony.id}
+          harmonyName={editorHarmony.name}
+          data={customEditorData[editorHarmony.id] || { chords: [], bpm: 80, musicalKey: 'C', description: '' }}
+          onClose={() => setEditorHarmony(null)}
+          onSave={saveEditorHarmony}
+          onDelete={deleteEditorHarmony}
+        />
+      )}
     </div>
   );
 }
