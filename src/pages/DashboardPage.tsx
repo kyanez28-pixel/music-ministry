@@ -351,66 +351,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Setlist Full Width */}
-      <div className="grid grid-cols-1 gap-4">
-        {/* Setlist summary with progress */}
-        <div className="stat-card">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="section-title text-sm">✝ Setlist de esta semana</h3>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">Semana del Lunes {monday.split('-')[2]}</p>
-            </div>
-            <button onClick={() => navigate('/setlist')} className="text-xs text-primary hover:underline font-medium">
-              Gestionar →
-            </button>
-          </div>
 
-          {setlistCount === 0 ? (
-            <div className="py-6 text-center border border-dashed border-border rounded-lg bg-secondary/10">
-              <p className="text-sm text-muted-foreground">Sin canciones para esta semana</p>
-              <Button variant="ghost" size="sm" className="mt-2 text-primary h-7 text-xs" onClick={() => navigate('/setlist')}>
-                + Agregar canciones
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Progress bar */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-                  <span>PROGRESO DE REPASO</span>
-                  <span>{Math.round(((currentSetlist?.practicedSongIds?.length || 0) / setlistCount) * 100)}%</span>
-                </div>
-                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-700 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-                    style={{ width: `${((currentSetlist?.practicedSongIds?.length || 0) / setlistCount) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-                {currentSetlist?.songIds.map((id: string) => {
-                  const song = songs.find((s: any) => s.id === id);
-                  const isPracticed = currentSetlist.practicedSongIds?.includes(id);
-                  return song ? (
-                    <div key={id} className="flex items-center gap-2 text-sm group">
-                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPracticed ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-primary/40'}`} />
-                      <span className={`flex-1 truncate ${isPracticed ? 'text-muted-foreground/70 line-through decoration-emerald-500/30' : 'text-foreground/90 font-medium'}`}>
-                        {song.title}
-                      </span>
-                      {isPracticed ? (
-                        <span className="text-[10px] text-emerald-500 font-mono">✓</span>
-                      ) : (
-                        <span className="text-[10px] text-primary/60 font-mono group-hover:text-primary transition-colors">Pendiente</span>
-                      )}
-                    </div>
-                  ) : null;
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Recent sessions */}
       <div className="stat-card">
