@@ -63,6 +63,28 @@ export default function HarmoniesPage() {
   const [playingHarmonyId, setPlayingHarmonyId] = useState<string | null>(null);
   const [expandedTipId, setExpandedTipId] = useState<string | null>(null);
   const [initialFoldersCollapsed, setInitialFoldersCollapsed] = useState(false);
+  const [hasMigrated, setHasMigrated] = useState(false);
+
+  // Helper to extract data prioritizing DB over localStorage
+  const getEditorData = (harmony: any) => {
+    if (harmony.notes) {
+      try {
+        const parsed = JSON.parse(harmony.notes);
+        if (parsed.editorData) return parsed.editorData;
+      } catch(e) {}
+    }
+    return customEditorData[harmony.id];
+  };
+
+  const getProgressions = (harmony: any) => {
+    if (harmony.notes) {
+      try {
+        const parsed = JSON.parse(harmony.notes);
+        if (parsed.progressions !== undefined) return parsed.progressions;
+      } catch(e) {}
+    }
+    return harmonyProgressions[harmony.id] || '';
+  };
 
   // Auto-collapse all folders on first load
   useEffect(() => {
@@ -71,6 +93,39 @@ export default function HarmoniesPage() {
       setInitialFoldersCollapsed(true);
     }
   }, [folders, initialFoldersCollapsed]);
+
+  // Migrate localStorage data to Supabase (notes column)
+  useEffect(() => {
+    if (!hasMigrated && customHarmonies && customHarmonies.length > 0) {
+      let migrated = false;
+      const updated = customHarmonies.map((h: any) => {
+        let needsUpdate = false;
+        let parsedNotes: any = {};
+        if (h.notes) {
+          try { parsedNotes = JSON.parse(h.notes); } catch(e) {}
+        }
+        
+        if (customEditorData[h.id] && !parsedNotes.editorData) {
+          parsedNotes.editorData = customEditorData[h.id];
+          needsUpdate = true;
+        }
+        if (harmonyProgressions[h.id] && parsedNotes.progressions === undefined) {
+          parsedNotes.progressions = harmonyProgressions[h.id];
+          needsUpdate = true;
+        }
+        if (needsUpdate) {
+          migrated = true;
+          return { ...h, notes: JSON.stringify(parsedNotes) };
+        }
+        return h;
+      });
+      
+      if (migrated) {
+        setCustomHarmonies(updated);
+      }
+      setHasMigrated(true);
+    }
+  }, [customHarmonies, customEditorData, harmonyProgressions, setCustomHarmonies, hasMigrated]);
 
   const DIFFICULTY_CONFIG = {
     basico:      { label: 'Básico',       color: '#4ade80', dot: '🟢' },
@@ -91,7 +146,7 @@ export default function HarmoniesPage() {
     setEditingVideoHarmony({ id: harmony.id, name: harmony.name });
     const parsedUrls = harmony.video_url ? harmony.video_url.split('\n') : [''];
     setTempVideoUrls(parsedUrls.length > 0 ? parsedUrls : ['']);
-    const progStr = harmonyProgressions[harmony.id] || '';
+    const progStr = getProgressions(harmony);
     const parsedProgs = progStr ? progStr.split('\n') : [''];
     const progs = parsedUrls.map((_, i) => parsedProgs[i] || '');
     setTempProgressions(progs.length > 0 ? progs : ['']);
@@ -156,9 +211,15 @@ export default function HarmoniesPage() {
 
   const saveEditorHarmony = (name: string, data: HarmonyEditorData) => {
     if (!editorHarmony) return;
-    setCustomHarmonies((prev: any[]) => prev.map((h: any) =>
-      h.id === editorHarmony.id ? { ...h, name, description: data.description } : h
-    ));
+    setCustomHarmonies((prev: any[]) => prev.map((h: any) => {
+      if (h.id === editorHarmony.id) {
+         let parsedNotes: any = {};
+         if (h.notes) { try { parsedNotes = JSON.parse(h.notes); } catch(e) {} }
+         parsedNotes.editorData = data;
+         return { ...h, name, description: data.description, notes: JSON.stringify(parsedNotes) };
+      }
+      return h;
+    }));
     setCustomEditorData((prev: Record<string, HarmonyEditorData>) => ({ ...prev, [editorHarmony.id]: data }));
     setEditorHarmony(null);
     toast.success('✅ Armonía guardada');
@@ -183,9 +244,15 @@ export default function HarmoniesPage() {
       const finalUrlStr = pairs.map(p => p.url).join('\n');
       const finalProgStr = pairs.map(p => p.prog).join('\n');
       setHarmonyProgressions((prev: Record<string,string>) => ({ ...prev, [editingVideoHarmony.id]: finalProgStr }));
-      setCustomHarmonies((prev: any[]) => prev.map((h: any) => 
-        h.id === editingVideoHarmony.id ? { ...h, video_url: finalUrlStr } : h
-      ));
+      setCustomHarmonies((prev: any[]) => prev.map((h: any) => {
+        if (h.id === editingVideoHarmony.id) {
+          let parsedNotes: any = {};
+          if (h.notes) { try { parsedNotes = JSON.parse(h.notes); } catch(e) {} }
+          parsedNotes.progressions = finalProgStr;
+          return { ...h, video_url: finalUrlStr, notes: JSON.stringify(parsedNotes) };
+        }
+        return h;
+      }));
       toast.success('Información guardada');
     }
     setEditingVideoHarmony(null);
@@ -254,6 +321,7 @@ export default function HarmoniesPage() {
       folder_id: h.folder_id,
       video_url: h.video_url,
       type: 'custom',
+      notes: h.notes,
     }));
     return [...PREDEFINED_HARMONIES, ...mappedCustom];
   }, [customHarmonies]);
@@ -350,7 +418,7 @@ export default function HarmoniesPage() {
     const count = practiceCount[harmony.id] ?? 0;
     const progressPct = Math.min(100, (count / maxPractice) * 100);
     const urls = harmony.video_url ? harmony.video_url.split('\n').filter(Boolean) : [];
-    const progressionStr = harmonyProgressions[harmony.id] || '';
+    const progressionStr = getProgressions(harmony);
     const progressions = progressionStr ? progressionStr.split('\n') : [];
     const hasVideo = urls.length > 0 || !!progressionStr;
     const isPlaying = playingHarmonyId === harmony.id;
@@ -358,6 +426,7 @@ export default function HarmoniesPage() {
     const catColor = CATEGORY_COLOR[harmony.category] || '#d4a843';
     const diff = DIFFICULTY_CONFIG[harmony.difficulty as keyof typeof DIFFICULTY_CONFIG];
     const isMastered = count >= 5;
+    const hEditorData = getEditorData(harmony);
 
     return (
       <div key={harmony.id} className={`stat-card transition-all duration-200 ${
@@ -445,29 +514,29 @@ export default function HarmoniesPage() {
             </div>
 
             {/* Professional Chord & Degree Display */}
-            {harmony.type === 'custom' && customEditorData[harmony.id] && (
+            {harmony.type === 'custom' && hEditorData && (
               <div className="mt-3 space-y-4">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-bold text-amber-500/60 uppercase tracking-widest bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10">
-                    Tonalidad: {customEditorData[harmony.id].musicalKey}
+                    Tonalidad: {hEditorData.musicalKey}
                   </span>
-                  {customEditorData[harmony.id].bpm && (
+                  {hEditorData.bpm && (
                     <span className="text-[10px] font-bold text-muted-foreground bg-white/5 px-2 py-0.5 rounded border border-white/5">
-                      {customEditorData[harmony.id].bpm} BPM
+                      {hEditorData.bpm} BPM
                     </span>
                   )}
                 </div>
 
-                {Array.isArray(customEditorData[harmony.id].sections) ? (
+                {Array.isArray(hEditorData.sections) ? (
                   <div className="space-y-4">
-                    {customEditorData[harmony.id].sections.map((section: any, sIdx: number) => (
+                    {hEditorData.sections.map((section: any, sIdx: number) => (
                       <div key={sIdx} className="space-y-2">
                         {section.label && (
                           <p className="text-[9px] font-bold text-amber-500/50 uppercase tracking-widest px-1">{section.label}</p>
                         )}
                         <div className="flex flex-wrap gap-1.5">
                           {Array.isArray(section.chords) && section.chords.map((chord: string, cIdx: number) => {
-                            const degree = getDegree(chord, customEditorData[harmony.id].musicalKey || 'C');
+                            const degree = getDegree(chord, hEditorData.musicalKey || 'C');
                             return (
                               <div key={cIdx} className="flex flex-col items-center justify-center min-w-[38px] px-1.5 py-1 rounded-md bg-amber-500/5 border border-amber-500/20 text-amber-400/90">
                                 <span className="text-[9px] font-bold opacity-60 mb-0.5">{chord}</span>
@@ -479,10 +548,10 @@ export default function HarmoniesPage() {
                       </div>
                     ))}
                   </div>
-                ) : Array.isArray(customEditorData[harmony.id].chords) ? (
+                ) : Array.isArray(hEditorData.chords) ? (
                   <div className="flex flex-wrap gap-2">
-                    {customEditorData[harmony.id].chords.map((chord: string, idx: number) => {
-                      const degree = getDegree(chord, customEditorData[harmony.id].musicalKey || 'C');
+                    {hEditorData.chords.map((chord: string, idx: number) => {
+                      const degree = getDegree(chord, hEditorData.musicalKey || 'C');
                       return (
                         <div key={idx} className="flex flex-col items-center justify-center min-w-[42px] px-2 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-sm">
                           <span className="text-[10px] font-bold opacity-70 mb-0.5">{chord}</span>
@@ -939,7 +1008,12 @@ export default function HarmoniesPage() {
           open={!!editorHarmony}
           harmonyId={editorHarmony.id}
           harmonyName={editorHarmony.name}
-          data={customEditorData[editorHarmony.id] || { chords: [], bpm: 80, musicalKey: 'C', description: '' }}
+          data={
+            (() => {
+               const h = customHarmonies.find((x: any) => x.id === editorHarmony.id);
+               return getEditorData(h || {}) || { sections: [], bpm: 80, musicalKey: 'C', description: '' };
+            })()
+          }
           onClose={() => setEditorHarmony(null)}
           onSave={saveEditorHarmony}
           onDelete={deleteEditorHarmony}

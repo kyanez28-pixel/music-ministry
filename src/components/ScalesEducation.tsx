@@ -274,9 +274,9 @@ export function ScalesEducation({ scaleLogs, allScales, practiceCount }: Props) 
                         </div>
                         
                         {/* Note Circle */}
-                        <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-mono text-sm font-bold bg-black shadow-xl
+                        <div className={`h-10 min-w-[2.5rem] px-2 rounded-xl border-2 flex items-center justify-center font-mono text-sm font-bold bg-black shadow-xl
                           ${i === 0 ? 'border-primary text-primary shadow-primary/10' : 'border-white/20 text-foreground/90'}`}>
-                          {note}
+                          {note}{theory.chords?.[i] ?? ''}
                         </div>
                       </div>
                     ))}
@@ -356,13 +356,12 @@ export function ScalesEducation({ scaleLogs, allScales, practiceCount }: Props) 
                             <span className={`font-mono text-sm w-8 text-left ${isSelected ? 'text-primary font-black' : 'text-muted-foreground group-hover:text-foreground'}`}>
                               {r}
                             </span>
-                            <div className="flex gap-1">
-                              {notes.slice(0, 4).map((note,i) => (
+                            <div className="flex gap-1.5 flex-wrap ml-1">
+                              {notes.map((note,i) => (
                                 <span key={i} className={`text-[10px] font-mono ${i===0?'text-primary/70':'text-foreground/40'}`}>
-                                  {note}
+                                  {note}{theory.chords?.[i] ?? ''}
                                 </span>
                               ))}
-                              <span className="text-[10px] text-foreground/20">...</span>
                             </div>
                           </div>
                           {practiced > 0 && (

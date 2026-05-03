@@ -53,30 +53,30 @@ export const PREDEFINED_SCALES: PredefinedScale[] = NOTES.flatMap((note, idx) =>
 // ─── Scale theory data ────────────────────────────────────────────────────────
 
 export const SCALE_THEORY: Record<string, {
-  steps: string[]; semitones: number[]; degrees: string[];
+  steps: string[]; semitones: number[]; degrees: string[]; chords?: string[];
   description: string; color: string; label: string;
 }> = {
   mayor: {
     steps: ['T','T','S','T','T','T','S'], semitones: [2,2,1,2,2,2,1],
-    degrees: ['1','2','3','4','5','6','7'],
+    degrees: ['1','2','3','4','5','6','7'], chords: ['','m','m','','','m','dim'],
     description: 'Base de la música occidental. Brillante, feliz, inspiradora. Usada en todos los géneros.',
     color: '#4ade80', label: 'Mayor',
   },
   menor_natural: {
     steps: ['T','S','T','T','S','T','T'], semitones: [2,1,2,2,1,2,2],
-    degrees: ['1','2','♭3','4','5','♭6','♭7'],
+    degrees: ['1','2','♭3','4','5','♭6','♭7'], chords: ['m','dim','','m','m','',''],
     description: 'Oscura, emocional, melancólica. La menor relativa. Base del clásico, rock y pop.',
     color: '#60a5fa', label: 'Menor Natural',
   },
   menor_armonica: {
     steps: ['T','S','T','T','S','A','S'], semitones: [2,1,2,2,1,3,1],
-    degrees: ['1','2','♭3','4','5','♭6','7'],
+    degrees: ['1','2','♭3','4','5','♭6','7'], chords: ['m','dim','aug','m','','','dim'],
     description: 'La séptima mayor crea tensión dramática. Usada en clásico, flamenco y metal.',
     color: '#a78bfa', label: 'Menor Armónica',
   },
   menor_melodica: {
     steps: ['T','S','T','T','T','T','S'], semitones: [2,1,2,2,2,2,1],
-    degrees: ['1','2','♭3','4','5','6','7'],
+    degrees: ['1','2','♭3','4','5','6','7'], chords: ['m','m','aug','','','dim','dim'],
     description: 'Menor de jazz: oscura pero suave. Base de la improvisación en el jazz moderno.',
     color: '#e879f9', label: 'Menor Melódica',
   },
@@ -100,31 +100,31 @@ export const SCALE_THEORY: Record<string, {
   },
   dorica: {
     steps: ['T','S','T','T','T','S','T'], semitones: [2,1,2,2,2,1,2],
-    degrees: ['1','2','♭3','4','5','6','♭7'],
+    degrees: ['1','2','♭3','4','5','6','♭7'], chords: ['m','m','','','m','dim',''],
     description: 'Modo menor con sexta mayor. Dulce pero misteriosa. Común en funk y jazz modal.',
     color: '#fbbf24', label: 'Dórica',
   },
   frigia: {
     steps: ['S','T','T','T','S','T','T'], semitones: [1,2,2,2,1,2,2],
-    degrees: ['1','♭2','♭3','4','5','♭6','♭7'],
+    degrees: ['1','♭2','♭3','4','5','♭6','♭7'], chords: ['m','','','m','dim','','m'],
     description: 'Modo menor con segunda menor. Tensión oscura y exótica. Sonido característico del metal y flamenco.',
     color: '#f87171', label: 'Frigia',
   },
   lidia: {
     steps: ['T','T','T','S','T','T','S'], semitones: [2,2,2,1,2,2,1],
-    degrees: ['1','2','3','#4','5','6','7'],
+    degrees: ['1','2','3','#4','5','6','7'], chords: ['','','m','dim','','m','m'],
     description: 'Modo mayor con cuarta aumentada. Soñadora, mágica y flotante. Usada en cine y jazz.',
     color: '#67e8f9', label: 'Lidia',
   },
   mixolidia: {
     steps: ['T','T','S','T','T','S','T'], semitones: [2,2,1,2,2,1,2],
-    degrees: ['1','2','3','4','5','6','♭7'],
+    degrees: ['1','2','3','4','5','6','♭7'], chords: ['','m','dim','','m','m',''],
     description: 'Modo mayor con séptima menor. Bluesy y rockera. Fundamental para dominantes.',
     color: '#d4a843', label: 'Mixolidia',
   },
   locria: {
     steps: ['S','T','T','S','T','T','T'], semitones: [1,2,2,1,2,2,2],
-    degrees: ['1','♭2','♭3','4','♭5','♭6','♭7'],
+    degrees: ['1','♭2','♭3','4','♭5','♭6','♭7'], chords: ['dim','','m','m','','','m'],
     description: 'El modo más inestable y oscuro. Tensión pura, rara vez usada como escala principal.',
     color: '#9ca3af', label: 'Locria',
   },
