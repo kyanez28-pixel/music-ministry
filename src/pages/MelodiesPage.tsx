@@ -903,23 +903,48 @@ export default function MelodiesPage() {
           </div>
           {/* Player */}
           {youtubeModalUrl && (() => {
-            const ytId = youtubeModalUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1];
-            return ytId ? (
-              <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
-                <iframe
-                  key={ytId}
-                  src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
-                  className="absolute inset-0 w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <p className="text-white/60 text-sm">No se pudo cargar el video.</p>
-                <a href={youtubeModalUrl} target="_blank" rel="noopener noreferrer"
-                   className="text-red-400 hover:text-red-300 text-sm underline flex items-center gap-1">
-                  <ExternalLink className="h-3.5 w-3.5" /> Abrir enlace directamente
+            // Detect embeddable YouTube ID (watch, shorts, youtu.be)
+            const ytId = youtubeModalUrl.match(
+              /(?:youtu\.be\/|(?:www\.|music\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([^?&\s/]+)/
+            )?.[1];
+
+            // Detect YouTube Clips which are NOT embeddable
+            const isClip = youtubeModalUrl.includes('youtube.com/clip/');
+            const isPlaylist = youtubeModalUrl.includes('list=') && !youtubeModalUrl.includes('v=');
+
+            if (ytId && !isClip) {
+              // Normal embeddable video
+              return (
+                <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+                  <iframe
+                    key={ytId}
+                    src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
+                    className="absolute inset-0 w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              );
+            }
+
+            // Clip, playlist, or unknown format → open directly in YouTube
+            const label = isClip
+              ? '✂️ Este es un clip de YouTube y no puede reproducirse aquí.'
+              : isPlaylist
+              ? '📋 Esta es una lista de reproducción de YouTube.'
+              : '⚠️ Este enlace no puede reproducirse directamente aquí.';
+
+            return (
+              <div className="flex flex-col items-center justify-center py-14 gap-5 px-6 text-center">
+                <p className="text-white/70 text-sm leading-relaxed">{label}</p>
+                <p className="text-white/40 text-xs">Ábrelo en YouTube para verlo completo.</p>
+                <a
+                  href={youtubeModalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] hover:scale-105"
+                >
+                  <ExternalLink className="h-4 w-4" /> Abrir en YouTube
                 </a>
               </div>
             );
