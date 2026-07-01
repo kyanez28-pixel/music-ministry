@@ -877,76 +877,98 @@ export default function MelodiesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── YouTube Video Modal ─────────────────────────────────────────────── */}
+      {/* ─── Video Modal (YouTube + TikTok) ───────────────────────────────────── */}
       <Dialog open={!!youtubeModalUrl} onOpenChange={open => { if (!open) setYoutubeModalUrl(null); }}>
         <DialogContent className="bg-black border-white/10 p-0 max-w-3xl w-full overflow-hidden rounded-xl">
-          {/* Header bar */}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-black/80 border-b border-white/10">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center shadow-md">
-                <Play className="h-3 w-3 text-white fill-white ml-0.5" />
-              </div>
-              <span className="text-white text-sm font-semibold">Reproduciendo video</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {youtubeModalUrl && (
-                <a
-                  href={youtubeModalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-[11px] text-white/60 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
-                >
-                  <ExternalLink className="h-3 w-3" /> Abrir en YouTube
-                </a>
-              )}
-            </div>
-          </div>
-          {/* Player */}
           {youtubeModalUrl && (() => {
-            // Detect embeddable YouTube ID (watch, shorts, youtu.be)
-            const ytId = youtubeModalUrl.match(
+            const isTikTok = youtubeModalUrl.includes('tiktok.com');
+            const ytId = !isTikTok ? youtubeModalUrl.match(
               /(?:youtu\.be\/|(?:www\.|music\.)?youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([^?&\s/]+)/
-            )?.[1];
-
-            // Detect YouTube Clips which are NOT embeddable
+            )?.[1] : null;
+            const ttId = isTikTok ? youtubeModalUrl.match(/\/video\/(\d+)/)?.[1] : null;
             const isClip = youtubeModalUrl.includes('youtube.com/clip/');
             const isPlaylist = youtubeModalUrl.includes('list=') && !youtubeModalUrl.includes('v=');
-
-            if (ytId && !isClip) {
-              // Normal embeddable video
-              return (
-                <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
-                  <iframe
-                    key={ytId}
-                    src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
-                    className="absolute inset-0 w-full h-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              );
-            }
-
-            // Clip, playlist, or unknown format → open directly in YouTube
-            const label = isClip
-              ? '✂️ Este es un clip de YouTube y no puede reproducirse aquí.'
-              : isPlaylist
-              ? '📋 Esta es una lista de reproducción de YouTube.'
-              : '⚠️ Este enlace no puede reproducirse directamente aquí.';
+            const platformLabel = isTikTok ? 'Abrir en TikTok' : 'Abrir en YouTube';
+            const platformColor = isTikTok ? 'bg-[#ff0050]' : 'bg-red-600';
 
             return (
-              <div className="flex flex-col items-center justify-center py-14 gap-5 px-6 text-center">
-                <p className="text-white/70 text-sm leading-relaxed">{label}</p>
-                <p className="text-white/40 text-xs">Ábrelo en YouTube para verlo completo.</p>
-                <a
-                  href={youtubeModalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] hover:scale-105"
-                >
-                  <ExternalLink className="h-4 w-4" /> Abrir en YouTube
-                </a>
-              </div>
+              <>
+                {/* Header bar */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-black/80 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 ${platformColor} rounded-full flex items-center justify-center shadow-md`}>
+                      <Play className="h-3 w-3 text-white fill-white ml-0.5" />
+                    </div>
+                    <span className="text-white text-sm font-semibold">
+                      {isTikTok ? '🎵 TikTok' : '▶ YouTube'}
+                    </span>
+                  </div>
+                  <a
+                    href={youtubeModalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[11px] text-white/60 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
+                  >
+                    <ExternalLink className="h-3 w-3" /> {platformLabel}
+                  </a>
+                </div>
+
+                {/* Player */}
+                {isTikTok && ttId ? (
+                  // TikTok embed
+                  <div className="relative w-full flex justify-center bg-black py-4" style={{ minHeight: '560px' }}>
+                    <iframe
+                      key={ttId}
+                      src={`https://www.tiktok.com/embed/v2/${ttId}`}
+                      className="w-full max-w-sm h-[560px] border-0"
+                      allow="encrypted-media"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : isTikTok ? (
+                  // TikTok short URL — can't extract ID, open directly
+                  <div className="flex flex-col items-center justify-center py-14 gap-5 px-6 text-center">
+                    <p className="text-white/70 text-sm">🎵 Este enlace de TikTok no puede reproducirse directamente aquí.</p>
+                    <a
+                      href={youtubeModalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 bg-[#ff0050] hover:bg-[#e0004a] text-white font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,80,0.4)] hover:scale-105"
+                    >
+                      <ExternalLink className="h-4 w-4" /> Abrir en TikTok
+                    </a>
+                  </div>
+                ) : ytId && !isClip ? (
+                  // YouTube normal embed
+                  <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+                    <iframe
+                      key={ytId}
+                      src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
+                      className="absolute inset-0 w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  // YouTube clip / playlist / unknown
+                  <div className="flex flex-col items-center justify-center py-14 gap-5 px-6 text-center">
+                    <p className="text-white/70 text-sm leading-relaxed">
+                      {isClip ? '✂️ Este es un clip de YouTube y no puede reproducirse aquí.'
+                        : isPlaylist ? '📋 Esta es una lista de reproducción de YouTube.'
+                        : '⚠️ Este enlace no puede reproducirse directamente aquí.'}
+                    </p>
+                    <p className="text-white/40 text-xs">Ábrelo en YouTube para verlo completo.</p>
+                    <a
+                      href={youtubeModalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:scale-105"
+                    >
+                      <ExternalLink className="h-4 w-4" /> Abrir en YouTube
+                    </a>
+                  </div>
+                )}
+              </>
             );
           })()}
         </DialogContent>
@@ -974,12 +996,18 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
     return m ? m[1] : null;
   };
 
+  const isTikTokUrl = (url: string) => url.includes('tiktok.com');
+
   // Extract videoUrl from description if not already set (it's stored as "[Video]: url")
   const videoUrl = melody.videoUrl ||
     (melody.description?.match(/\[Video\]:\s*(https?:\/\/[^\s]+)/)?.[1] ?? undefined);
 
   // Clean description for display (remove the [Video]: url part)
   const cleanDescription = melody.description?.replace(/\n?\[Video\]:\s*https?:\/\/[^\s]+/, '').trim();
+
+  const isYouTube = videoUrl ? !!getYouTubeId(videoUrl) : false;
+  const isTikTok = videoUrl ? isTikTokUrl(videoUrl) : false;
+  const hasVideo = isYouTube || isTikTok;
 
   return (
     <div className={`stat-card overflow-hidden transition-all flex flex-col ${isChecked ? 'border-primary/40 bg-primary/5' : ''} hover:shadow-[0_0_30px_-10px_rgba(255,255,255,0.1)]`}>
@@ -1001,20 +1029,38 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
             {status.emoji} {status.label}
           </span>
         </div>
-      ) : videoUrl && getYouTubeId(videoUrl) ? (
+      ) : hasVideo && videoUrl ? (
         <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group" onClick={() => onPlayVideo(videoUrl!)}>
-          <img src={`https://img.youtube.com/vi/${getYouTubeId(videoUrl!)}/mqdefault.jpg`} alt="Video"
-            className="w-full h-36 border-b border-white/5 object-cover transition-transform duration-500 group-hover:scale-110" />
+          {isYouTube ? (
+            <img src={`https://img.youtube.com/vi/${getYouTubeId(videoUrl!)}/mqdefault.jpg`} alt="Video"
+              className="w-full h-36 border-b border-white/5 object-cover transition-transform duration-500 group-hover:scale-110" />
+          ) : (
+            // TikTok branded placeholder
+            <div className="w-full h-36 border-b border-white/5 bg-gradient-to-br from-black via-[#1a1a2e] to-black flex items-center justify-center transition-transform duration-500 group-hover:scale-105">
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-4xl">🎵</span>
+                <span className="text-white/70 text-xs font-bold tracking-widest">TikTok</span>
+              </div>
+            </div>
+          )}
           <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
-            <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.7)] group-hover:scale-125 group-hover:bg-red-500 transition-all duration-300">
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg group-hover:scale-125 transition-all duration-300 ${
+              isTikTok
+                ? 'bg-[#ff0050] shadow-[0_0_30px_rgba(255,0,80,0.7)] group-hover:bg-[#e0004a]'
+                : 'bg-red-600 shadow-[0_0_30px_rgba(220,38,38,0.7)] group-hover:bg-red-500'
+            }`}>
               <Play className="h-6 w-6 text-white fill-white ml-0.5" />
             </div>
           </div>
           <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
             {status.emoji} {status.label}
           </span>
-          <span className="absolute bottom-2 right-2 bg-red-600/90 backdrop-blur-md text-white text-[9px] px-2 py-0.5 rounded-full border border-red-400/30 font-semibold tracking-wide">
-            ▶ VER VIDEO
+          <span className={`absolute bottom-2 right-2 backdrop-blur-md text-white text-[9px] px-2 py-0.5 rounded-full font-semibold tracking-wide border ${
+            isTikTok
+              ? 'bg-[#ff0050]/90 border-pink-400/30'
+              : 'bg-red-600/90 border-red-400/30'
+          }`}>
+            {isTikTok ? '🎵 TIKTOK' : '▶ VER VIDEO'}
           </span>
         </div>
       ) : (
