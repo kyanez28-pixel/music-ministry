@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
   Plus, FolderPlus, Trash2, Upload, Image as ImageIcon, Check,
   Save, X, ChevronDown, ChevronRight, ZoomIn, ArrowLeft,
-  ArrowRight, Music2, Play, Maximize2
+  ArrowRight, Music2, Play, Maximize2, ExternalLink
 } from 'lucide-react';
 import { LoadingCard, LoadingGrid } from '@/components/ui/LoadingCard';
 import { useFocusMode } from '@/contexts/FocusModeContext';
@@ -101,6 +101,7 @@ export default function MelodiesPage() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [initialFoldersCollapsed, setInitialFoldersCollapsed] = useState(false);
+  const [youtubeModalUrl, setYoutubeModalUrl] = useState<string | null>(null);
 
   // Auto-collapse all folders on first load
   useEffect(() => {
@@ -532,6 +533,7 @@ export default function MelodiesPage() {
                           onToggle={() => togglePractice(m.id)}
                           onEdit={() => openEdit(m)}
                           onViewImages={() => openViewer(m.id)}
+                          onPlayVideo={(url) => setYoutubeModalUrl(url)}
                           instruments={instruments}
                         />
                       ))}
@@ -556,6 +558,7 @@ export default function MelodiesPage() {
                     onToggle={() => togglePractice(m.id)}
                     onEdit={() => openEdit(m)}
                     onViewImages={() => openViewer(m.id)}
+                    onPlayVideo={(url) => setYoutubeModalUrl(url)}
                     instruments={instruments}
                   />
                 ))}
@@ -873,17 +876,68 @@ export default function MelodiesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ─── YouTube Video Modal ─────────────────────────────────────────────── */}
+      <Dialog open={!!youtubeModalUrl} onOpenChange={open => { if (!open) setYoutubeModalUrl(null); }}>
+        <DialogContent className="bg-black border-white/10 p-0 max-w-3xl w-full overflow-hidden rounded-xl">
+          {/* Header bar */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-black/80 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center shadow-md">
+                <Play className="h-3 w-3 text-white fill-white ml-0.5" />
+              </div>
+              <span className="text-white text-sm font-semibold">Reproduciendo video</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {youtubeModalUrl && (
+                <a
+                  href={youtubeModalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-white/60 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
+                >
+                  <ExternalLink className="h-3 w-3" /> Abrir en YouTube
+                </a>
+              )}
+            </div>
+          </div>
+          {/* Player */}
+          {youtubeModalUrl && (() => {
+            const ytId = youtubeModalUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1];
+            return ytId ? (
+              <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+                <iframe
+                  key={ytId}
+                  src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0`}
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <p className="text-white/60 text-sm">No se pudo cargar el video.</p>
+                <a href={youtubeModalUrl} target="_blank" rel="noopener noreferrer"
+                   className="text-red-400 hover:text-red-300 text-sm underline flex items-center gap-1">
+                  <ExternalLink className="h-3.5 w-3.5" /> Abrir enlace directamente
+                </a>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages, instruments }: {
+function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages, onPlayVideo, instruments }: {
   melody: Melody;
   images: MelodyImage[];
   isChecked: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onViewImages: () => void;
+  onPlayVideo: (url: string) => void;
   instruments: InstrumentDef[];
 }) {
   const { openFocusMode } = useFocusMode();
@@ -916,16 +970,19 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
           </span>
         </div>
       ) : melody.videoUrl && getYouTubeId(melody.videoUrl) ? (
-        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group" onClick={() => window.open(melody.videoUrl, '_blank')}>
+        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group" onClick={() => onPlayVideo(melody.videoUrl!)}>
           <img src={`https://img.youtube.com/vi/${getYouTubeId(melody.videoUrl!)}/mqdefault.jpg`} alt="Video"
             className="w-full h-36 border-b border-white/5 object-cover transition-transform duration-500 group-hover:scale-110" />
-          <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
-             <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(220,38,38,0.5)] group-hover:scale-110 group-hover:bg-red-500 transition-all duration-300">
-               <Play className="h-5 w-5 text-white fill-white ml-0.5" />
-             </div>
+          <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
+            <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.7)] group-hover:scale-125 group-hover:bg-red-500 transition-all duration-300">
+              <Play className="h-6 w-6 text-white fill-white ml-0.5" />
+            </div>
           </div>
           <span className="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full border border-white/10">
             {status.emoji} {status.label}
+          </span>
+          <span className="absolute bottom-2 right-2 bg-red-600/90 backdrop-blur-md text-white text-[9px] px-2 py-0.5 rounded-full border border-red-400/30 font-semibold tracking-wide">
+            ▶ VER VIDEO
           </span>
         </div>
       ) : (
@@ -993,13 +1050,22 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
             <p className="text-[11px] text-muted-foreground/60 mt-2 line-clamp-2 italic leading-relaxed">{melody.description}</p>
           )}
 
-          {/* External video link */}
+          {/* Video buttons */}
           {melody.videoUrl && (
-            <div className="mt-4">
-              <a href={melody.videoUrl} target="_blank" rel="noopener noreferrer"
-                 className="premium-btn-glow w-full inline-flex items-center justify-center gap-2 text-[11px] font-bold text-red-500 bg-gradient-to-r from-red-500/10 to-red-500/20 border border-red-500/30 px-3 py-2 rounded-lg hover:from-red-500/20 hover:to-red-500/30 transition-all shadow-sm"
-                 onClick={e => e.stopPropagation()}>
-                <Play className="h-3 w-3 fill-current" /> Ver Tutorial
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={e => { e.stopPropagation(); onPlayVideo(melody.videoUrl!); }}
+                className="premium-btn-glow flex-1 inline-flex items-center justify-center gap-2 text-[11px] font-bold text-red-500 bg-gradient-to-r from-red-500/10 to-red-500/20 border border-red-500/30 px-3 py-2 rounded-lg hover:from-red-500/20 hover:to-red-500/30 transition-all shadow-sm"
+              >
+                <Play className="h-3 w-3 fill-current" /> Ver Video
+              </button>
+              <a
+                href={melody.videoUrl} target="_blank" rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:border-white/30 transition-all"
+                title="Abrir en YouTube"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
           )}
