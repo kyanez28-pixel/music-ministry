@@ -949,6 +949,13 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
     return m ? m[1] : null;
   };
 
+  // Extract videoUrl from description if not already set (it's stored as "[Video]: url")
+  const videoUrl = melody.videoUrl ||
+    (melody.description?.match(/\[Video\]:\s*(https?:\/\/[^\s]+)/)?.[1] ?? undefined);
+
+  // Clean description for display (remove the [Video]: url part)
+  const cleanDescription = melody.description?.replace(/\n?\[Video\]:\s*https?:\/\/[^\s]+/, '').trim();
+
   return (
     <div className={`stat-card overflow-hidden transition-all flex flex-col ${isChecked ? 'border-primary/40 bg-primary/5' : ''} hover:shadow-[0_0_30px_-10px_rgba(255,255,255,0.1)]`}>
       {/* Media thumbnail */}
@@ -969,9 +976,9 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
             {status.emoji} {status.label}
           </span>
         </div>
-      ) : melody.videoUrl && getYouTubeId(melody.videoUrl) ? (
-        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group" onClick={() => onPlayVideo(melody.videoUrl!)}>
-          <img src={`https://img.youtube.com/vi/${getYouTubeId(melody.videoUrl!)}/mqdefault.jpg`} alt="Video"
+      ) : videoUrl && getYouTubeId(videoUrl) ? (
+        <div className="relative -mx-4 -mt-4 mb-3 cursor-pointer group" onClick={() => onPlayVideo(videoUrl!)}>
+          <img src={`https://img.youtube.com/vi/${getYouTubeId(videoUrl!)}/mqdefault.jpg`} alt="Video"
             className="w-full h-36 border-b border-white/5 object-cover transition-transform duration-500 group-hover:scale-110" />
           <div className="absolute inset-0 bg-black/50 group-hover:bg-black/30 transition-all duration-300 flex items-center justify-center">
             <div className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(220,38,38,0.7)] group-hover:scale-125 group-hover:bg-red-500 transition-all duration-300">
@@ -1046,21 +1053,21 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
             {melody.bpm > 0 && <span className="font-mono bg-secondary/50 px-1.5 rounded text-[10px]">{melody.bpm} BPM</span>}
           </div>
 
-          {melody.description && (
-            <p className="text-[11px] text-muted-foreground/60 mt-2 line-clamp-2 italic leading-relaxed">{melody.description}</p>
+          {cleanDescription && (
+            <p className="text-[11px] text-muted-foreground/60 mt-2 line-clamp-2 italic leading-relaxed">{cleanDescription}</p>
           )}
 
           {/* Video buttons */}
-          {melody.videoUrl && (
+          {videoUrl && (
             <div className="mt-4 flex gap-2">
               <button
-                onClick={e => { e.stopPropagation(); onPlayVideo(melody.videoUrl!); }}
+                onClick={e => { e.stopPropagation(); onPlayVideo(videoUrl!); }}
                 className="premium-btn-glow flex-1 inline-flex items-center justify-center gap-2 text-[11px] font-bold text-red-500 bg-gradient-to-r from-red-500/10 to-red-500/20 border border-red-500/30 px-3 py-2 rounded-lg hover:from-red-500/20 hover:to-red-500/30 transition-all shadow-sm"
               >
                 <Play className="h-3 w-3 fill-current" /> Ver Video
               </button>
               <a
-                href={melody.videoUrl} target="_blank" rel="noopener noreferrer"
+                href={videoUrl} target="_blank" rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
                 className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:text-white hover:border-white/30 transition-all"
                 title="Abrir en YouTube"
