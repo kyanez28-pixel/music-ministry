@@ -12,7 +12,6 @@ import PracticePage from "./pages/PracticePage";
 import HistoryPage from "./pages/HistoryPage";
 import SetlistPage from "./pages/SetlistPage";
 import ScalesPage from "./pages/ScalesPage";
-import HarmoniesPage from "./pages/HarmoniesPage";
 import MelodiesPage from "./pages/MelodiesPage";
 import RhythmsPage from "./pages/RhythmsPage";
 import ExercisesPage from "./pages/ExercisesPage";
@@ -45,7 +44,6 @@ const App = () => (
                   <Route path="/history" element={<HistoryPage />} />
                   <Route path="/setlist" element={<SetlistPage />} />
                   <Route path="/scales" element={<ScalesPage />} />
-                  <Route path="/harmonies" element={<HarmoniesPage />} />
                   <Route path="/melodies" element={<MelodiesPage />} />
                   <Route path="/rhythms" element={<RhythmsPage />} />
                   <Route path="/exercises" element={<ExercisesPage />} />

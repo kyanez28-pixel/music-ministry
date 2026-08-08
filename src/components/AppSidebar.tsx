@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Timer, List, Music2, BookOpen,
+  LayoutDashboard, Timer, List, Music2,
   Guitar, Drum, BarChart3, Cross, BookMarked, Clock4, Download, Upload
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useSongs, useSetlists, useScaleLogs, useHarmonyLogs, useRhythmPracticeLogs } from '@/hooks/use-music-data';
+import { useSongs, useSetlists, useScaleLogs, useRhythmPracticeLogs } from '@/hooks/use-music-data';
 import { getMonday, getTodayEC } from '@/lib/music-utils';
 import { useInstruments } from '@/hooks/use-instruments';
 import { Settings2 } from 'lucide-react';
@@ -36,7 +36,6 @@ const generalItems = [
 
 const studyItems = [
   { title: 'Escalas', url: '/scales', icon: Music2, desc: 'Biblioteca de escalas musicales' },
-  { title: 'Armonías', url: '/harmonies', icon: BookOpen, desc: 'Progresiones de acordes y armonía' },
   { title: 'Melodías', url: '/melodies', icon: Guitar, desc: 'Repertorio de melodías y frases' },
   { title: 'Ritmos', url: '/rhythms', icon: Drum, desc: 'Patrones rítmicos y grooves' },
   { title: 'Ejercicios', url: '/exercises', icon: BookMarked, desc: 'Técnicas y ejercicios diarios' },
@@ -55,7 +54,6 @@ export function AppSidebar() {
   const [songs = []] = useSongs();
   const [setlists = []] = useSetlists();
   const [scaleLogs = []] = useScaleLogs();
-  const [harmonyLogs = []] = useHarmonyLogs();
   const [rhythmPracticeLogs = []] = useRhythmPracticeLogs();
   const { instruments } = useInstruments();
   const { isInstallable, installApp } = usePWAInstall();
@@ -67,13 +65,11 @@ export function AppSidebar() {
 
   // Badges para actividad de hoy
   const todayScales = (scaleLogs || []).filter((l: any) => l.date === today).length;
-  const todayHarmonies = (harmonyLogs || []).filter((l: any) => l.date === today).length;
   const todayRhythms = (rhythmPracticeLogs || []).filter((l: any) => l.date === today).length;
 
   const getBadge = (title: string): number | null => {
     if (title === 'Setlist Semanal' && setlistCount > 0) return setlistCount;
     if (title === 'Escalas' && todayScales > 0) return todayScales;
-    if (title === 'Armonías' && todayHarmonies > 0) return todayHarmonies;
     if (title === 'Ritmos' && todayRhythms > 0) return todayRhythms;
     return null;
   };

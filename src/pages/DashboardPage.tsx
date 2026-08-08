@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useSessions, useScaleLogs, useHarmonyLogs, useRhythmPracticeLogs, useSongs, useSetlists } from '@/hooks/use-music-data';
+import { useSessions, useScaleLogs, useRhythmPracticeLogs, useSongs, useSetlists } from '@/hooks/use-music-data';
 import { getStreak, getTotalMinutes, getSessionCount, formatDuration, formatDurationLong, formatDate, getTodayEC, getMonday } from '@/lib/music-utils';
 import { CATEGORY_LABELS, type PracticeCategory } from '@/types/music';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Plus, Clock, Flame, Music2, BookOpen, Drum, Guitar, Timer } from 'lucide-react';
+import { Plus, Clock, Flame, Music2, Drum, Guitar, Timer } from 'lucide-react';
 import { useInstruments } from '@/hooks/use-instruments';
 import type { InstrumentDef } from '@/types/music';
 import { AppTooltip } from '@/components/AppTooltip';
@@ -13,14 +13,13 @@ import { LoadingCard } from '@/components/ui/LoadingCard';
 export default function DashboardPage() {
   const [sessions = [], , isLoadingSessions] = useSessions();
   const [scaleLogs = [], , isLoadingScales] = useScaleLogs();
-  const [harmonyLogs = [], , isLoadingHarmonies] = useHarmonyLogs();
   const [rhythmPracticeLogs = [], , isLoadingRhythms] = useRhythmPracticeLogs();
   const [songs = [], , isLoadingSongs] = useSongs();
   const [setlists = [], , isLoadingSetlists] = useSetlists();
   const navigate = useNavigate();
   const { instruments } = useInstruments();
 
-  const isLoading = isLoadingSessions || isLoadingScales || isLoadingHarmonies || isLoadingRhythms || isLoadingSongs || isLoadingSetlists;
+  const isLoading = isLoadingSessions || isLoadingScales || isLoadingRhythms || isLoadingSongs || isLoadingSetlists;
 
   const streak = getStreak(sessions || []);
   const today = getTodayEC();
@@ -35,11 +34,9 @@ export default function DashboardPage() {
   const todayMinutes = todaySessions.reduce((sum: number, s: any) => sum + s.durationMinutes, 0);
   
   const todayScaleLogsFull = (scaleLogs || []).filter((l: any) => l.date === today);
-  const todayHarmonyLogsFull = (harmonyLogs || []).filter((l: any) => l.date === today);
   const todayRhythmsLogsFull = (rhythmPracticeLogs || []).filter((l: any) => l.date === today);
   
   const todayScales = todayScaleLogsFull.length;
-  const todayHarmonies = todayHarmonyLogsFull.length;
   const todayRhythms = todayRhythmsLogsFull.length;
   
   const [showTodayDetail, setShowTodayDetail] = useState(false);
@@ -118,7 +115,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Today banner */}
-      {todayMinutes > 0 || todayScales > 0 || todayHarmonies > 0 || todayRhythms > 0 ? (
+      {todayMinutes > 0 || todayScales > 0 || todayRhythms > 0 ? (
         <div className="glass-panel rounded-xl border-primary/30 p-5 bg-gradient-to-r from-primary/10 to-transparent">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-primary">✅ Hoy practicaste</p>
@@ -142,7 +139,7 @@ export default function DashboardPage() {
               <span>🎵 {todaySessions.length} sesión{todaySessions.length > 1 ? 'es' : ''}</span>
             )}
             {todayScales > 0 && <span>🎼 {todayScales} escalas</span>}
-            {todayHarmonies > 0 && <span>🎶 {todayHarmonies} armonías</span>}
+
             {todayRhythms > 0 && <span>🥁 {todayRhythms} ritmos</span>}
           </div>
 
@@ -168,7 +165,7 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {(todayScales > 0 || todayHarmonies > 0 || todayRhythms > 0) && (
+              {(todayScales > 0 || todayRhythms > 0) && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {todayScales > 0 && (
                     <div>
@@ -183,19 +180,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
-                  {todayHarmonies > 0 && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-primary/70 font-bold mb-2">Armonías</p>
-                      <div className="space-y-1">
-                        {todayHarmonyLogsFull.map((l: any, idx: number) => (
-                          <div key={idx} className="text-[10px] py-1 px-2 rounded bg-primary/5 text-foreground/80 flex items-center justify-between">
-                            <span>{l.harmony_id}</span>
-                            <span className="text-[9px] opacity-70">practicada</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
                   {todayRhythms > 0 && (
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-primary/70 font-bold mb-2">Ritmos</p>
@@ -212,7 +197,7 @@ export default function DashboardPage() {
                 </div>
               )}
               <p className="text-[9px] text-center text-muted-foreground/60 italic pt-2">
-                * Las escalas, armonías y ritmos muestran actividad pero no suman tiempo a menos que registres una sesión.
+                * Las escalas y ritmos muestran actividad pero no suman tiempo a menos que registres una sesión.
               </p>
             </div>
           )}
@@ -331,10 +316,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {[
           { icon: Music2, label: 'Escalas', desc: 'Explorar colección', path: '/scales', color: 'text-blue-400/90' },
-          { icon: BookOpen, label: 'Armonías', desc: 'Explorar colección', path: '/harmonies', color: 'text-purple-400/90' },
           { icon: Guitar, label: 'Melodías', desc: 'Gestionar repertorio', path: '/melodies', color: 'text-green-400/90' },
           { icon: Drum, label: 'Ritmos', desc: 'Explorar colección', path: '/rhythms', color: 'text-orange-400/90' },
         ].map(({ icon: Icon, label, desc, path, color }) => (

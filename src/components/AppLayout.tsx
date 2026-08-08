@@ -18,7 +18,6 @@ const ROUTE_NAMES: Record<string, string> = {
   '/history': 'Historial',
   '/setlist': 'Setlist Semanal',
   '/scales': 'Escalas',
-  '/harmonies': 'Armonías',
   '/melodies': 'Melodías',
   '/rhythms': 'Ritmos',
   '/exercises': 'Ejercicios',
