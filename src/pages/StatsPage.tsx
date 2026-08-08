@@ -1,99 +1,127 @@
-import { useState, useMemo } from 'react';
-import { useSessions, useSongs } from '@/hooks/use-music-data';
-import { formatDuration, formatDurationLong, getStreak, getActiveDaysInLastN, getTodayEC } from '@/lib/music-utils';
+﻿import { useState, useMemo } from 'react';
+import {
+  useSessions, useScaleLogs, useRhythmPracticeLogs,
+  useMelodyPracticeLogs, useMelodies, useScales, useRhythms, useSongs
+} from '@/hooks/use-music-data';
+import {
+  formatDuration, formatDurationLong, getStreak,
+  getActiveDaysInLastN, getTodayEC
+} from '@/lib/music-utils';
 import { CATEGORY_LABELS, ALL_CATEGORIES, type PracticeCategory } from '@/types/music';
 import { LoadingCard } from '@/components/ui/LoadingCard';
+import { useInstruments } from '@/hooks/use-instruments';
+import type { InstrumentDef } from '@/types/music';
 
 type Period = 'semana' | 'mes' | 'año' | 'todo';
 
 const PERIOD_DAYS: Record<Period, number | null> = {
-  semana: 7,
-  mes: 30,
-  año: 365,
-  todo: null,
+  semana: 7, mes: 30, año: 365, todo: null,
 };
+
+function ProgressBar({ value, max, color = 'bg-primary' }: { value: number; max: number; color?: string }) {
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  return (
+    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+      <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+function StatMini({ label, value, sub, emoji }: { label: string; value: string | number; sub?: string; emoji?: string }) {
+  return (
+    <div className="stat-card text-center">
+      {emoji && <p className="text-2xl mb-1">{emoji}</p>}
+      <p className="font-mono text-xl font-bold text-foreground">{value}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+      {sub && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
 
 export default function StatsPage() {
   const [sessions = [], , isLoadingSessions] = useSessions();
   const [songs = [], , isLoadingSongs] = useSongs();
+  const [scaleLogs = [], , isLoadingScaleLogs] = useScaleLogs();
+  const [rhythmLogs = [], , isLoadingRhythmLogs] = useRhythmPracticeLogs();
+  const [melodyLogs = [], , isLoadingMelodyLogs] = useMelodyPracticeLogs();
+  const [melodies = [], , isLoadingMelodies] = useMelodies();
+  const [scales = [], , isLoadingScalesData] = useScales();
+  const [rhythms = [], , isLoadingRhythms] = useRhythms();
   const [period, setPeriod] = useState<Period>('mes');
+  const { instruments } = useInstruments();
 
   const today = getTodayEC();
 
-  // Filtrar por período usando comparación de strings de fecha (más preciso)
-  const filtered = useMemo(() => {
+  const isLoading =
+    isLoadingSessions || isLoadingSongs || isLoadingScaleLogs ||
+    isLoadingRhythmLogs || isLoadingMelodyLogs || isLoadingMelodies ||
+    isLoadingScalesData || isLoadingRhythms;
+
+  const cutoffDate = useMemo(() => {
     const days = PERIOD_DAYS[period];
-    if (days === null) return sessions || [];
-    const cutoff = new Date(today + 'T00:00:00');
-    cutoff.setDate(cutoff.getDate() - days);
-    const cutoffStr = cutoff.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-    return (sessions || []).filter(s => s.date >= cutoffStr);
-  }, [sessions, period, today]);
+    if (!days) return null;
+    const d = new Date(today + 'T00:00:00');
+    d.setDate(d.getDate() - days);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+  }, [period, today]);
 
-  const totalMinutes = filtered.reduce((sum, s) => sum + s.durationMinutes, 0);
-  const pianoMinutes = filtered.filter(s => s.instrument === 'piano').reduce((sum, s) => sum + s.durationMinutes, 0);
-  const guitarMinutes = filtered.filter(s => s.instrument === 'guitarra').reduce((sum, s) => sum + s.durationMinutes, 0);
-  const ukeleleMinutes = filtered.filter(s => s.instrument === 'ukelele').reduce((sum, s) => sum + s.durationMinutes, 0);
-  const avgMinutes = filtered.length > 0 ? Math.round(totalMinutes / filtered.length) : 0;
-  const uniqueDays = new Set(filtered.map(s => s.date)).size;
+  const inPeriod = (date: string) => !cutoffDate || date >= cutoffDate;
 
-  // Mejor sesión
-  const bestSession = filtered.reduce<any>((best: any, s: any) =>
-    !best || s.durationMinutes > best.durationMinutes ? s : best, null);
+  const filteredSessions = useMemo(() =>
+    (sessions || []).filter(s => inPeriod(s.date)), [sessions, cutoffDate]);
+  const filteredScaleLogs = useMemo(() =>
+    (scaleLogs || []).filter((l: any) => inPeriod(l.date)), [scaleLogs, cutoffDate]);
+  const filteredRhythmLogs = useMemo(() =>
+    (rhythmLogs || []).filter((l: any) => inPeriod(l.date)), [rhythmLogs, cutoffDate]);
+  const filteredMelodyLogs = useMemo(() =>
+    (melodyLogs || []).filter((l: any) => inPeriod(l.date)), [melodyLogs, cutoffDate]);
 
-  // Racha
-  const streak = getStreak(sessions || []);
-
-  // Días activos en período
+  const totalMinutes = filteredSessions.reduce((s, x) => s + x.durationMinutes, 0);
+  const avgMinutes = filteredSessions.length > 0 ? Math.round(totalMinutes / filteredSessions.length) : 0;
+  const uniqueDays = new Set(filteredSessions.map(s => s.date)).size;
   const days = PERIOD_DAYS[period];
   const activeDays = days ? getActiveDaysInLastN(sessions || [], days) : uniqueDays;
+  const streak = getStreak(sessions || []);
+  const bestSession = filteredSessions.reduce<any>((best, s) =>
+    !best || s.durationMinutes > best.durationMinutes ? s : best, null);
 
-  // Category breakdown
+  const uniqueScalesCount = new Set(filteredScaleLogs.map((l: any) => l.scale_id)).size;
+  const uniqueRhythmsCount = new Set(filteredRhythmLogs.map((l: any) => l.rhythm_id)).size;
+  const uniqueMelodiesCount = new Set(filteredMelodyLogs.map((l: any) => l.melody_id)).size;
+
   const categoryMinutes = useMemo(() => {
     const map: Record<string, number> = {};
     ALL_CATEGORIES.forEach(c => { map[c] = 0; });
-    filtered.forEach(s => {
+    filteredSessions.forEach(s => {
       const perCat = s.durationMinutes / (s.categories.length || 1);
       s.categories.forEach(c => { map[c] = (map[c] || 0) + perCat; });
     });
     return map as Record<PracticeCategory, number>;
-  }, [filtered]);
+  }, [filteredSessions]);
 
   const maxCatMinutes = Math.max(...Object.values(categoryMinutes), 1);
   const activeCats = ALL_CATEGORIES.filter(c => categoryMinutes[c] > 0)
     .sort((a, b) => categoryMinutes[b] - categoryMinutes[a]);
 
-  // Song practice analysis
-  const practicedSongs = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filtered.forEach(s => {
-      if (s.notes?.startsWith('Repaso setlist: ')) {
-        const title = s.notes.replace('Repaso setlist: ', '');
-        counts[title] = (counts[title] || 0) + 1;
-      }
-    });
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-  }, [filtered]);
-
-  // Actividad por bloques de tiempo
   const activityData = useMemo(() => {
     if (period === 'semana') {
       return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(today + 'T12:00:00');
         d.setDate(d.getDate() - (6 - i));
         const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-        const mins = filtered.filter(s => s.date === dateStr).reduce((sum, s) => sum + s.durationMinutes, 0);
+        const mins = filteredSessions.filter(s => s.date === dateStr).reduce((sum, s) => sum + s.durationMinutes, 0);
+        const scaleCount = filteredScaleLogs.filter((l: any) => l.date === dateStr).length;
+        const melodyCount = filteredMelodyLogs.filter((l: any) => l.date === dateStr).length;
+        const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date === dateStr).length;
         return {
           label: d.toLocaleDateString('es-EC', { weekday: 'short', timeZone: 'America/Guayaquil' }),
-          minutes: mins,
-          isToday: dateStr === today,
+          minutes: mins, isToday: dateStr === today,
+          scaleCount, melodyCount, rhythmCount,
+          hasStudy: scaleCount + melodyCount + rhythmCount > 0,
         };
       });
     }
-
-    const weeks = period === 'mes' ? 4 : period === 'año' ? 12 : 12;
+    const weeks = period === 'mes' ? 4 : 12;
     return Array.from({ length: weeks }, (_, idx) => {
       const w = weeks - 1 - idx;
       const end = new Date(today + 'T12:00:00');
@@ -102,117 +130,200 @@ export default function StatsPage() {
       start.setDate(start.getDate() - 7);
       const startStr = start.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
       const endStr = end.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-      const mins = filtered.filter(s => s.date > startStr && s.date <= endStr)
-        .reduce((sum, s) => sum + s.durationMinutes, 0);
-      return { label: `S${idx + 1}`, minutes: mins, isToday: false };
+      const mins = filteredSessions.filter(s => s.date > startStr && s.date <= endStr).reduce((sum, s) => sum + s.durationMinutes, 0);
+      return { label: `S${idx + 1}`, minutes: mins, isToday: false, hasStudy: false, scaleCount: 0, melodyCount: 0, rhythmCount: 0 };
     });
-  }, [filtered, period, today]);
+  }, [filteredSessions, filteredScaleLogs, filteredMelodyLogs, filteredRhythmLogs, period, today]);
 
   const maxActivity = Math.max(...activityData.map(d => d.minutes), 1);
 
-  if (isLoadingSessions || isLoadingSongs) {
+  const buildTop = (logs: any[], idKey: string, catalog: any[]) =>
+    Object.entries(
+      logs.reduce<Record<string, number>>((acc, l) => { acc[l[idKey]] = (acc[l[idKey]] || 0) + 1; return acc; }, {})
+    ).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([id, count]) => ({ name: (catalog || []).find((x: any) => x.id === id)?.name || id, count: count as number }));
+
+  const topScales = useMemo(() => buildTop(filteredScaleLogs, 'scale_id', scales), [filteredScaleLogs, scales]);
+  const topMelodies = useMemo(() => buildTop(filteredMelodyLogs, 'melody_id', melodies), [filteredMelodyLogs, melodies]);
+  const topRhythms = useMemo(() => buildTop(filteredRhythmLogs, 'rhythm_id', rhythms), [filteredRhythmLogs, rhythms]);
+
+  const practicedSongs = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredSessions.forEach(s => {
+      if (s.notes?.startsWith('Repaso setlist: ')) {
+        const title = s.notes.replace('Repaso setlist: ', '');
+        counts[title] = (counts[title] || 0) + 1;
+      }
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [filteredSessions]);
+
+  const melodyByStatus = useMemo(() => {
+    const all = melodies || [];
+    return {
+      dominada: all.filter((m: any) => m.status === 'dominada').length,
+      practicando: all.filter((m: any) => m.status === 'practicando').length,
+      aprendiendo: all.filter((m: any) => m.status === 'aprendiendo').length,
+      total: all.length,
+    };
+  }, [melodies]);
+
+  const achievements = useMemo(() => [
+    { emoji: '🔥', label: '7 días de racha', earned: streak.current >= 7 },
+    { emoji: '🏆', label: '30 días de racha', earned: streak.current >= 30 },
+    { emoji: '⏱️', label: '10 hrs totales', earned: (sessions || []).reduce((s, x) => s + x.durationMinutes, 0) >= 600 },
+    { emoji: '🎵', label: '5 melodías dominadas', earned: melodyByStatus.dominada >= 5 },
+    { emoji: '🎼', label: '10 escalas practicadas', earned: new Set((scaleLogs || []).map((l: any) => l.scale_id)).size >= 10 },
+    { emoji: '🥁', label: '5 ritmos practicados', earned: new Set((rhythmLogs || []).map((l: any) => l.rhythm_id)).size >= 5 },
+    { emoji: '📚', label: '50 sesiones', earned: (sessions || []).length >= 50 },
+    { emoji: '🌟', label: '100 sesiones', earned: (sessions || []).length >= 100 },
+  ], [streak, sessions, melodyByStatus, scaleLogs, rhythmLogs]);
+
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="h-12 w-48 bg-white/5 rounded-lg animate-pulse" />
-        <LoadingCard />
+        <LoadingCard /><LoadingCard />
       </div>
     );
   }
 
+  const periodLabel: Record<Period, string> = { semana: 'esta semana', mes: 'este mes', año: 'este año', todo: 'en total' };
+
   return (
     <div className="space-y-6">
-      {/* Header + period selector */}
+
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="page-title">Estadísticas</h1>
+        <div>
+          <h1 className="page-title">📊 Estadísticas</h1>
+          <p className="text-sm text-muted-foreground mt-1">Resumen de tu práctica musical</p>
+        </div>
         <div className="flex gap-1">
           {(['semana', 'mes', 'año', 'todo'] as Period[]).map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`chip text-sm ${period === p ? 'chip-active' : ''}`}>
+            <button key={p} onClick={() => setPeriod(p)} className={`chip text-sm ${period === p ? 'chip-active' : ''}`}>
               {p === 'todo' ? 'Todo' : p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatMini label="Tiempo total" value={formatDurationLong(totalMinutes)} sub={periodLabel[period]} emoji="⏱️" />
+        <StatMini label="Sesiones" value={filteredSessions.length} sub={periodLabel[period]} emoji="📋" />
+        <StatMini label="Días activos" value={activeDays} sub={periodLabel[period]} emoji="📅" />
+        <StatMini label="Promedio/sesión" value={formatDuration(avgMinutes)} sub="por sesión" emoji="📈" />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="stat-card text-center">
-          <p className="font-mono text-xl font-bold text-foreground">{formatDurationLong(totalMinutes)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Tiempo total</p>
+          <p className="text-3xl mb-1">🎼</p>
+          <p className="font-mono text-2xl font-bold text-foreground">{filteredScaleLogs.length}</p>
+          <p className="text-xs text-muted-foreground">prácticas de escalas</p>
+          <p className="text-[10px] text-muted-foreground/60">{uniqueScalesCount} escalas distintas</p>
         </div>
         <div className="stat-card text-center">
-          <p className="font-mono text-xl font-bold text-foreground">{filtered.length}</p>
-          <p className="text-xs text-muted-foreground mt-1">Sesiones</p>
+          <p className="text-3xl mb-1">🎵</p>
+          <p className="font-mono text-2xl font-bold text-foreground">{filteredMelodyLogs.length}</p>
+          <p className="text-xs text-muted-foreground">prácticas de melodías</p>
+          <p className="text-[10px] text-muted-foreground/60">{uniqueMelodiesCount} melodías distintas</p>
         </div>
         <div className="stat-card text-center">
-          <p className="font-mono text-xl font-bold text-foreground">{activeDays}</p>
-          <p className="text-xs text-muted-foreground mt-1">Días activos</p>
-        </div>
-        <div className="stat-card text-center">
-          <p className="font-mono text-xl font-bold text-foreground">{formatDuration(avgMinutes)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Promedio/sesión</p>
+          <p className="text-3xl mb-1">🥁</p>
+          <p className="font-mono text-2xl font-bold text-foreground">{filteredRhythmLogs.length}</p>
+          <p className="text-xs text-muted-foreground">prácticas de ritmos</p>
+          <p className="text-[10px] text-muted-foreground/60">{uniqueRhythmsCount} ritmos distintos</p>
         </div>
       </div>
 
-      {/* Streak + best session */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="stat-card flex items-center gap-4">
-          <span className="text-3xl">🔥</span>
+          <span className="text-4xl">🔥</span>
           <div>
             <p className="text-xs text-muted-foreground">Racha actual</p>
-            <p className="font-mono text-2xl font-bold text-foreground">{streak.current} días</p>
+            <p className="font-mono text-3xl font-bold text-foreground">{streak.current} <span className="text-lg font-normal text-muted-foreground">días</span></p>
             <p className="text-xs text-muted-foreground">Mejor: {streak.best} días</p>
           </div>
         </div>
-        {bestSession && (
+        {bestSession ? (
           <div className="stat-card flex items-center gap-4">
-            <span className="text-3xl">🏆</span>
+            <span className="text-4xl">🏆</span>
             <div>
               <p className="text-xs text-muted-foreground">Mejor sesión del período</p>
-              <p className="font-mono text-2xl font-bold text-foreground">{formatDurationLong(bestSession.durationMinutes)}</p>
+              <p className="font-mono text-3xl font-bold text-foreground">{formatDurationLong(bestSession.durationMinutes)}</p>
               <p className="text-xs text-muted-foreground">
-                {bestSession.instrument === 'piano' ? '🎹' : '🎸'} {bestSession.date}
+                {instruments.find((i: InstrumentDef) => i.id === bestSession.instrument)?.emoji || '🎼'} {bestSession.date} {'★'.repeat(bestSession.rating)}
               </p>
             </div>
           </div>
+        ) : (
+          <div className="stat-card flex items-center justify-center text-muted-foreground text-sm">Sin sesiones en este período</div>
         )}
       </div>
 
-      {/* Activity chart */}
       <div className="stat-card">
-        <h3 className="section-title mb-4">
-          Actividad {period === 'semana' ? 'diaria' : 'semanal'}
-        </h3>
-        <div className="flex items-end gap-1.5 h-36">
+        <h3 className="section-title mb-4">Actividad {period === 'semana' ? 'diaria' : 'semanal'}</h3>
+        <div className="flex items-end gap-1.5 h-40 pb-5">
           {activityData.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              {d.minutes > 0 && (
-                <span className="text-[9px] font-mono text-muted-foreground">{formatDuration(d.minutes)}</span>
-              )}
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end relative">
+              {d.minutes > 0 && <span className="text-[9px] font-mono text-muted-foreground">{formatDuration(d.minutes)}</span>}
               <div
-                className={`w-full rounded-t transition-all duration-300 ${d.isToday ? 'ring-1 ring-primary' : ''}`}
+                className={`w-full rounded-t transition-all duration-500 ${d.isToday ? 'ring-1 ring-primary' : ''}`}
                 style={{
-                  height: `${Math.max((d.minutes / maxActivity) * 100, d.minutes > 0 ? 4 : 0)}%`,
-                  minHeight: '4px',
-                  background: d.minutes > 0
-                    ? `hsl(42 60% 55% / ${0.4 + (d.minutes / maxActivity) * 0.6})`
-                    : 'hsl(var(--secondary))',
+                  height: `${Math.max((d.minutes / maxActivity) * 72, d.minutes > 0 ? 5 : 0)}%`,
+                  minHeight: d.minutes > 0 ? '6px' : '3px',
+                  background: d.minutes > 0 ? `hsl(42 60% 55% / ${0.4 + (d.minutes / maxActivity) * 0.6})` : 'hsl(var(--secondary))',
                 }}
               />
+              {period === 'semana' && d.hasStudy && (
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex gap-0.5">
+                  {d.scaleCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
+                  {d.melodyCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
+                  {d.rhythmCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />}
+                </div>
+              )}
               <span className={`text-[10px] font-mono capitalize ${d.isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                {d.label}
+                {d.label.slice(0, 2)}
               </span>
             </div>
           ))}
         </div>
+        {period === 'semana' && (
+          <div className="flex items-center gap-4 mt-2 pt-2 border-t border-border/30">
+            <p className="text-[10px] text-muted-foreground">Estudio:</p>
+            {[{ color: 'bg-blue-400', label: 'Escalas' }, { color: 'bg-green-400', label: 'Melodías' }, { color: 'bg-orange-400', label: 'Ritmos' }].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-1">
+                <span className={`w-2 h-2 rounded-full ${color}`} />
+                <span className="text-[10px] text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Category breakdown */}
-      <div className="stat-card">
-        <h3 className="section-title mb-4">Por Categoría</h3>
-        {activeCats.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Sin datos para este período</p>
-        ) : (
+      {totalMinutes > 0 && (
+        <div className="stat-card">
+          <h3 className="section-title mb-4">Por instrumento</h3>
+          <div className="space-y-3">
+            {instruments.map((inst: InstrumentDef) => {
+              const mins = filteredSessions.filter(s => s.instrument === inst.id).reduce((sum, s) => sum + s.durationMinutes, 0);
+              if (mins === 0) return null;
+              return (
+                <div key={inst.id}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>{inst.emoji} {inst.name}</span>
+                    <span className="font-mono text-muted-foreground">{formatDurationLong(mins)} · {Math.round((mins / totalMinutes) * 100)}%</span>
+                  </div>
+                  <ProgressBar value={mins} max={totalMinutes} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {activeCats.length > 0 && (
+        <div className="stat-card">
+          <h3 className="section-title mb-4">Por categoría de práctica</h3>
           <div className="space-y-2.5">
             {activeCats.map(cat => (
               <div key={cat}>
@@ -220,54 +331,99 @@ export default function StatsPage() {
                   <span>{CATEGORY_LABELS[cat]}</span>
                   <span className="font-mono text-muted-foreground">{formatDuration(Math.round(categoryMinutes[cat]))}</span>
                 </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full transition-all duration-500"
-                    style={{ width: `${(categoryMinutes[cat] / maxCatMinutes) * 100}%` }}
-                  />
-                </div>
+                <ProgressBar value={categoryMinutes[cat]} max={maxCatMinutes} />
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Por instrumento */}
-      <div className="stat-card">
-        <h3 className="section-title mb-4">Por instrumento</h3>
-        {totalMinutes === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Sin datos para este período</p>
-        ) : (
-          <div className="space-y-3">
-            {[
-              { label: '🎹 Piano', minutes: pianoMinutes, color: 'hsl(var(--primary))' },
-              { label: '🎸 Guitarra', minutes: guitarMinutes, color: 'hsl(var(--warning))' },
-              { label: '🪗 Ukelele', minutes: ukeleleMinutes, color: 'hsl(var(--info))' },
-            ].map(({ label, minutes, color }) => (
-              <div key={label}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>{label}</span>
-                  <span className="font-mono text-muted-foreground">
-                    {formatDurationLong(minutes)} · {Math.round((minutes / totalMinutes) * 100)}%
-                  </span>
-                </div>
-                <div className="h-3 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${(minutes / totalMinutes) * 100}%`, background: color }} />
-                </div>
+      {(topScales.length > 0 || topMelodies.length > 0 || topRhythms.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {topScales.length > 0 && (
+            <div className="stat-card">
+              <h3 className="section-title text-sm mb-3">🎼 Escalas más practicadas</h3>
+              <div className="space-y-2">
+                {topScales.map(({ name, count }, i) => (
+                  <div key={name} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] font-mono text-muted-foreground/60 w-4">{i + 1}</span>
+                      <span className="text-xs truncate">{name}</span>
+                    </div>
+                    <span className="shrink-0 bg-blue-500/10 text-blue-400 text-[10px] px-2 py-0.5 rounded-full font-mono">{count}×</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+          {topMelodies.length > 0 && (
+            <div className="stat-card">
+              <h3 className="section-title text-sm mb-3">🎵 Melodías más practicadas</h3>
+              <div className="space-y-2">
+                {topMelodies.map(({ name, count }, i) => (
+                  <div key={name} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] font-mono text-muted-foreground/60 w-4">{i + 1}</span>
+                      <span className="text-xs truncate">{name}</span>
+                    </div>
+                    <span className="shrink-0 bg-green-500/10 text-green-400 text-[10px] px-2 py-0.5 rounded-full font-mono">{count}×</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {topRhythms.length > 0 && (
+            <div className="stat-card">
+              <h3 className="section-title text-sm mb-3">🥁 Ritmos más practicados</h3>
+              <div className="space-y-2">
+                {topRhythms.map(({ name, count }, i) => (
+                  <div key={name} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] font-mono text-muted-foreground/60 w-4">{i + 1}</span>
+                      <span className="text-xs truncate">{name}</span>
+                    </div>
+                    <span className="shrink-0 bg-orange-500/10 text-orange-400 text-[10px] px-2 py-0.5 rounded-full font-mono">{count}×</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Por canción */}
+      {melodyByStatus.total > 0 && (
+        <div className="stat-card">
+          <h3 className="section-title mb-4">Progreso del repertorio de melodías</h3>
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="text-center">
+              <p className="font-mono text-2xl font-bold text-green-400">{melodyByStatus.dominada}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">✅ Dominadas</p>
+            </div>
+            <div className="text-center">
+              <p className="font-mono text-2xl font-bold text-blue-400">{melodyByStatus.practicando}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">🎯 Practicando</p>
+            </div>
+            <div className="text-center">
+              <p className="font-mono text-2xl font-bold text-yellow-400">{melodyByStatus.aprendiendo}</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">🔄 Aprendiendo</p>
+            </div>
+          </div>
+          <div className="h-3 rounded-full overflow-hidden flex">
+            {melodyByStatus.dominada > 0 && <div className="bg-green-500 transition-all duration-700" style={{ width: `${(melodyByStatus.dominada / melodyByStatus.total) * 100}%` }} />}
+            {melodyByStatus.practicando > 0 && <div className="bg-blue-500 transition-all duration-700" style={{ width: `${(melodyByStatus.practicando / melodyByStatus.total) * 100}%` }} />}
+            {melodyByStatus.aprendiendo > 0 && <div className="bg-yellow-500 transition-all duration-700" style={{ width: `${(melodyByStatus.aprendiendo / melodyByStatus.total) * 100}%` }} />}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 text-right">{melodyByStatus.total} melodías en total</p>
+        </div>
+      )}
+
       {practicedSongs.length > 0 && (
         <div className="stat-card">
-          <h3 className="section-title mb-4">Canciones más repasadas</h3>
-          <div className="space-y-3">
+          <h3 className="section-title mb-4">Canciones más repasadas (setlist)</h3>
+          <div className="space-y-2">
             {practicedSongs.map(([title, count]) => (
-              <div key={title} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0">
-                <span className="text-sm font-medium">{title}</span>
+              <div key={title} className="flex items-center justify-between py-1 border-b border-border/30 last:border-0">
+                <span className="text-sm">{title}</span>
                 <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-mono">
                   {count} {count === 1 ? 'vez' : 'veces'}
                 </span>
@@ -276,6 +432,20 @@ export default function StatsPage() {
           </div>
         </div>
       )}
+
+      <div className="stat-card">
+        <h3 className="section-title mb-4">🏅 Logros</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {achievements.map(({ emoji, label, earned }) => (
+            <div key={label} className={`rounded-xl p-3 text-center border transition-all ${earned ? 'border-primary/30 bg-primary/5 shadow-[0_0_15px_hsl(var(--primary)/0.1)]' : 'border-border/30 bg-secondary/20 opacity-40 grayscale'}`}>
+              <p className="text-2xl mb-1">{emoji}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
+              {earned && <p className="text-[9px] text-primary mt-1">✓ Conseguido</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
