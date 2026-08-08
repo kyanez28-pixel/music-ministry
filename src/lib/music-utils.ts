@@ -151,3 +151,57 @@ export function getDegree(chord: string, keyRoot: string) {
   if (c.type.startsWith('m') && !c.type.startsWith('maj')) deg = deg.toLowerCase();
   return deg;
 }
+
+export interface MonthWeekRange {
+  weekNum: number;
+  startStr: string;
+  endStr: string;
+  label: string;
+  subLabel: string;
+  isCurrentWeek: boolean;
+}
+
+/** Divide un mes en semanas naturales de lunes a domingo */
+export function getMonthMondaySundayWeeks(year: number, monthZeroIndexed: number, todayStr: string): MonthWeekRange[] {
+  const firstDay = new Date(year, monthZeroIndexed, 1, 12, 0, 0);
+  const lastDay = new Date(year, monthZeroIndexed + 1, 0, 12, 0, 0);
+  const monthLastDate = lastDay.getDate();
+  const monthPrefix = `${year}-${String(monthZeroIndexed + 1).padStart(2, '0')}`;
+  const monthShort = firstDay.toLocaleDateString('es-EC', { month: 'short' });
+
+  const weeks: MonthWeekRange[] = [];
+  let currentMonday = getMonday(firstDay);
+  let weekIndex = 1;
+
+  while (currentMonday <= lastDay) {
+    const currentSunday = new Date(currentMonday);
+    currentSunday.setDate(currentSunday.getDate() + 6);
+
+    const weekStartInMonth = currentMonday < firstDay ? 1 : currentMonday.getDate();
+    const weekEndInMonth = currentSunday > lastDay ? monthLastDate : currentSunday.getDate();
+
+    const startStr = `${monthPrefix}-${String(weekStartInMonth).padStart(2, '0')}`;
+    const endStr = `${monthPrefix}-${String(weekEndInMonth).padStart(2, '0')}`;
+
+    const subLabel = weekStartInMonth === weekEndInMonth 
+      ? `${weekStartInMonth} ${monthShort}`
+      : `${weekStartInMonth}–${weekEndInMonth} ${monthShort}`;
+
+    const isCurrentWeek = todayStr >= startStr && todayStr <= endStr;
+
+    weeks.push({
+      weekNum: weekIndex,
+      startStr,
+      endStr,
+      label: `Sem ${weekIndex}`,
+      subLabel,
+      isCurrentWeek,
+    });
+
+    currentMonday = new Date(currentMonday);
+    currentMonday.setDate(currentMonday.getDate() + 7);
+    weekIndex++;
+  }
+
+  return weeks;
+}

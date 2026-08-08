@@ -5,7 +5,7 @@ import {
 } from '@/hooks/use-music-data';
 import {
   formatDuration, formatDurationLong, getStreak,
-  getTodayEC, getMonday, formatDateShort
+  getTodayEC, getMonday, formatDateShort, getMonthMondaySundayWeeks
 } from '@/lib/music-utils';
 import { CATEGORY_LABELS, ALL_CATEGORIES, type PracticeCategory } from '@/types/music';
 import { LoadingCard } from '@/components/ui/LoadingCard';
@@ -163,37 +163,21 @@ export default function StatsPage() {
     }
 
     if (periodInfo.mode === 'mes') {
-      const lastDay = periodInfo.lastDay;
-      const weekRanges: { start: number; end: number; label: string }[] = [
-        { start: 1, end: 7, label: '1–7' },
-        { start: 8, end: 14, label: '8–14' },
-        { start: 15, end: 21, label: '15–21' },
-        { start: 22, end: 28, label: '22–28' },
-      ];
-      if (lastDay > 28) {
-        weekRanges.push({ start: 29, end: lastDay, label: `29–${lastDay}` });
-      }
+      const weeks = getMonthMondaySundayWeeks(periodInfo.year, periodInfo.month, today);
 
-      const y = periodInfo.year;
-      const m = periodInfo.month + 1;
-      const monthPrefix = `${y}-${String(m).padStart(2, '0')}`;
-
-      return weekRanges.map((w, idx) => {
-        const startStr = `${monthPrefix}-${String(w.start).padStart(2, '0')}`;
-        const endStr = `${monthPrefix}-${String(w.end).padStart(2, '0')}`;
-        const mins = filteredSessions.filter(s => s.date >= startStr && s.date <= endStr)
+      return weeks.map((w) => {
+        const mins = filteredSessions
+          .filter(s => s.date >= w.startStr && s.date <= w.endStr)
           .reduce((sum, s) => sum + s.durationMinutes, 0);
-        const scaleCount = filteredScaleLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
-        const melodyCount = filteredMelodyLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
-        const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
-
-        const isCurrentWeekOfMonth = today >= startStr && today <= endStr;
+        const scaleCount = filteredScaleLogs.filter((l: any) => l.date >= w.startStr && l.date <= w.endStr).length;
+        const melodyCount = filteredMelodyLogs.filter((l: any) => l.date >= w.startStr && l.date <= w.endStr).length;
+        const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date >= w.startStr && l.date <= w.endStr).length;
 
         return {
-          label: `Sem ${idx + 1}`,
-          subLabel: w.label,
+          label: w.label,
+          subLabel: w.subLabel,
           minutes: mins,
-          isToday: isCurrentWeekOfMonth,
+          isToday: w.isCurrentWeek,
           scaleCount, melodyCount, rhythmCount,
           hasStudy: scaleCount + melodyCount + rhythmCount > 0,
         };
@@ -201,35 +185,34 @@ export default function StatsPage() {
     }
 
     if (periodInfo.mode === 'ultimos30') {
+      // 5 semanas continuas de lunes a domingo
       const now = new Date(today + 'T12:00:00');
-      const blocks = [
-        { daysAgoEnd: 0, daysAgoStart: 6, label: 'Sem 4 (reciente)' },
-        { daysAgoEnd: 7, daysAgoStart: 13, label: 'Sem 3' },
-        { daysAgoEnd: 14, daysAgoStart: 20, label: 'Sem 2' },
-        { daysAgoEnd: 21, daysAgoStart: 29, label: 'Sem 1' },
-      ].reverse();
+      const thisMonday = getMonday(now);
+      const weeks = Array.from({ length: 5 }, (_, idx) => {
+        const i = 4 - idx; // 4, 3, 2, 1, 0
+        const m = new Date(thisMonday);
+        m.setDate(m.getDate() - i * 7);
+        const sun = new Date(m);
+        sun.setDate(sun.getDate() + 6);
+        const startStr = m.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+        const endStr = sun.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+        const subLabel = `${m.getDate()} ${m.toLocaleDateString('es-EC', { month: 'short' })}–${sun.getDate()} ${sun.toLocaleDateString('es-EC', { month: 'short' })}`;
+        const isCurrentWeek = today >= startStr && today <= endStr;
+        return { label: `Sem ${idx + 1}`, subLabel, startStr, endStr, isCurrentWeek };
+      });
 
-      return blocks.map((b, idx) => {
-        const dStart = new Date(now);
-        dStart.setDate(dStart.getDate() - b.daysAgoStart);
-        const dEnd = new Date(now);
-        dEnd.setDate(dEnd.getDate() - b.daysAgoEnd);
-        const startStr = dStart.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-        const endStr = dEnd.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-
-        const mins = filteredSessions.filter(s => s.date >= startStr && s.date <= endStr)
+      return weeks.map(w => {
+        const mins = filteredSessions.filter(s => s.date >= w.startStr && s.date <= w.endStr)
           .reduce((sum, s) => sum + s.durationMinutes, 0);
-        const scaleCount = filteredScaleLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
-        const melodyCount = filteredMelodyLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
-        const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
-
-        const isTodayBlock = b.daysAgoEnd === 0;
+        const scaleCount = filteredScaleLogs.filter((l: any) => l.date >= w.startStr && l.date <= w.endStr).length;
+        const melodyCount = filteredMelodyLogs.filter((l: any) => l.date >= w.startStr && l.date <= w.endStr).length;
+        const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date >= w.startStr && l.date <= w.endStr).length;
 
         return {
-          label: `Bloque ${idx + 1}`,
-          subLabel: `${dStart.getDate()} ${dStart.toLocaleDateString('es-EC', { month: 'short' })}–${dEnd.getDate()} ${dEnd.toLocaleDateString('es-EC', { month: 'short' })}`,
+          label: w.label,
+          subLabel: w.subLabel,
           minutes: mins,
-          isToday: isTodayBlock,
+          isToday: w.isCurrentWeek,
           scaleCount, melodyCount, rhythmCount,
           hasStudy: scaleCount + melodyCount + rhythmCount > 0,
         };
