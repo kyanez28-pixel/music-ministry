@@ -5,18 +5,22 @@ import {
 } from '@/hooks/use-music-data';
 import {
   formatDuration, formatDurationLong, getStreak,
-  getActiveDaysInLastN, getTodayEC
+  getTodayEC, getMonday, formatDateShort
 } from '@/lib/music-utils';
 import { CATEGORY_LABELS, ALL_CATEGORIES, type PracticeCategory } from '@/types/music';
 import { LoadingCard } from '@/components/ui/LoadingCard';
 import { useInstruments } from '@/hooks/use-instruments';
 import type { InstrumentDef } from '@/types/music';
 
-type Period = 'semana' | 'mes' | 'año' | 'todo';
+export type Period = 'semana' | 'mes' | 'ultimos30' | 'año' | 'todo';
 
-const PERIOD_DAYS: Record<Period, number | null> = {
-  semana: 7, mes: 30, año: 365, todo: null,
-};
+const PERIOD_OPTIONS: { id: Period; label: string; shortLabel: string }[] = [
+  { id: 'semana', label: 'Esta Semana', shortLabel: 'Semana' },
+  { id: 'mes', label: 'Este Mes', shortLabel: 'Mes' },
+  { id: 'ultimos30', label: 'Últimos 30 días', shortLabel: '30 Días' },
+  { id: 'año', label: 'Este Año', shortLabel: 'Año' },
+  { id: 'todo', label: 'Todo el Historial', shortLabel: 'Todo' },
+];
 
 function ProgressBar({ value, max, color = 'bg-gradient-to-r from-amber-500/80 to-primary' }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
@@ -57,30 +61,64 @@ export default function StatsPage() {
     isLoadingRhythmLogs || isLoadingMelodyLogs || isLoadingMelodies ||
     isLoadingScalesData || isLoadingRhythms;
 
-  const cutoffDate = useMemo(() => {
-    const days = PERIOD_DAYS[period];
-    if (!days) return null;
-    const d = new Date(today + 'T00:00:00');
-    d.setDate(d.getDate() - days);
-    return d.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+  const periodInfo = useMemo(() => {
+    const now = new Date(today + 'T12:00:00');
+
+    if (period === 'semana') {
+      const mon = getMonday(now);
+      const startStr = mon.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+      const sun = new Date(mon);
+      sun.setDate(sun.getDate() + 6);
+      const endStr = sun.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+      const subLabel = `esta semana (${mon.toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })} – ${sun.toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })})`;
+      return { startStr, endStr, subLabel, mode: 'semana' as const, mon, sun };
+    }
+
+    if (period === 'mes') {
+      const y = now.getFullYear();
+      const m = now.getMonth();
+      const startStr = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      const endStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const monthName = now.toLocaleDateString('es-EC', { month: 'long' });
+      const subLabel = `este mes (${monthName} ${y})`;
+      return { startStr, endStr, subLabel, mode: 'mes' as const, year: y, month: m, lastDay };
+    }
+
+    if (period === 'ultimos30') {
+      const past = new Date(now);
+      past.setDate(past.getDate() - 29);
+      const startStr = past.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+      const endStr = today;
+      const subLabel = `últimos 30 días (${past.toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })} – ${now.toLocaleDateString('es-EC', { day: 'numeric', month: 'short' })})`;
+      return { startStr, endStr, subLabel, mode: 'ultimos30' as const, past };
+    }
+
+    if (period === 'año') {
+      const y = now.getFullYear();
+      const startStr = `${y}-01-01`;
+      const endStr = `${y}-12-31`;
+      const subLabel = `este año (${y})`;
+      return { startStr, endStr, subLabel, mode: 'año' as const, year: y };
+    }
+
+    return { startStr: '1970-01-01', endStr: '2099-12-31', subLabel: 'en total', mode: 'todo' as const };
   }, [period, today]);
 
-  const inPeriod = (date: string) => !cutoffDate || date >= cutoffDate;
+  const inPeriod = (date: string) => date >= periodInfo.startStr && date <= periodInfo.endStr;
 
   const filteredSessions = useMemo(() =>
-    (sessions || []).filter(s => inPeriod(s.date)), [sessions, cutoffDate]);
+    (sessions || []).filter(s => s.date && inPeriod(s.date)), [sessions, periodInfo]);
   const filteredScaleLogs = useMemo(() =>
-    (scaleLogs || []).filter((l: any) => inPeriod(l.date)), [scaleLogs, cutoffDate]);
+    (scaleLogs || []).filter((l: any) => l.date && inPeriod(l.date)), [scaleLogs, periodInfo]);
   const filteredRhythmLogs = useMemo(() =>
-    (rhythmLogs || []).filter((l: any) => inPeriod(l.date)), [rhythmLogs, cutoffDate]);
+    (rhythmLogs || []).filter((l: any) => l.date && inPeriod(l.date)), [rhythmLogs, periodInfo]);
   const filteredMelodyLogs = useMemo(() =>
-    (melodyLogs || []).filter((l: any) => inPeriod(l.date)), [melodyLogs, cutoffDate]);
+    (melodyLogs || []).filter((l: any) => l.date && inPeriod(l.date)), [melodyLogs, periodInfo]);
 
   const totalMinutes = filteredSessions.reduce((s, x) => s + x.durationMinutes, 0);
   const avgMinutes = filteredSessions.length > 0 ? Math.round(totalMinutes / filteredSessions.length) : 0;
   const uniqueDays = new Set(filteredSessions.map(s => s.date)).size;
-  const days = PERIOD_DAYS[period];
-  const activeDays = days ? getActiveDaysInLastN(sessions || [], days) : uniqueDays;
   const streak = getStreak(sessions || []);
   const bestSession = filteredSessions.reduce<any>((best, s) =>
     !best || s.durationMinutes > best.durationMinutes ? s : best, null);
@@ -104,10 +142,10 @@ export default function StatsPage() {
     .sort((a, b) => categoryMinutes[b] - categoryMinutes[a]);
 
   const activityData = useMemo(() => {
-    if (period === 'semana') {
+    if (periodInfo.mode === 'semana') {
       return Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(today + 'T12:00:00');
-        d.setDate(d.getDate() - (6 - i));
+        const d = new Date(periodInfo.mon);
+        d.setDate(d.getDate() + i);
         const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
         const mins = filteredSessions.filter(s => s.date === dateStr).reduce((sum, s) => sum + s.durationMinutes, 0);
         const scaleCount = filteredScaleLogs.filter((l: any) => l.date === dateStr).length;
@@ -115,25 +153,123 @@ export default function StatsPage() {
         const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date === dateStr).length;
         return {
           label: d.toLocaleDateString('es-EC', { weekday: 'short', timeZone: 'America/Guayaquil' }),
-          minutes: mins, isToday: dateStr === today,
+          subLabel: `${d.getDate()}`,
+          minutes: mins,
+          isToday: dateStr === today,
           scaleCount, melodyCount, rhythmCount,
           hasStudy: scaleCount + melodyCount + rhythmCount > 0,
         };
       });
     }
-    const weeks = period === 'mes' ? 4 : 12;
-    return Array.from({ length: weeks }, (_, idx) => {
-      const w = weeks - 1 - idx;
-      const end = new Date(today + 'T12:00:00');
-      end.setDate(end.getDate() - w * 7);
-      const start = new Date(end);
-      start.setDate(start.getDate() - 7);
-      const startStr = start.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-      const endStr = end.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-      const mins = filteredSessions.filter(s => s.date > startStr && s.date <= endStr).reduce((sum, s) => sum + s.durationMinutes, 0);
-      return { label: `S${idx + 1}`, minutes: mins, isToday: false, hasStudy: false, scaleCount: 0, melodyCount: 0, rhythmCount: 0 };
+
+    if (periodInfo.mode === 'mes') {
+      const lastDay = periodInfo.lastDay;
+      const weekRanges: { start: number; end: number; label: string }[] = [
+        { start: 1, end: 7, label: '1–7' },
+        { start: 8, end: 14, label: '8–14' },
+        { start: 15, end: 21, label: '15–21' },
+        { start: 22, end: 28, label: '22–28' },
+      ];
+      if (lastDay > 28) {
+        weekRanges.push({ start: 29, end: lastDay, label: `29–${lastDay}` });
+      }
+
+      const y = periodInfo.year;
+      const m = periodInfo.month + 1;
+      const monthPrefix = `${y}-${String(m).padStart(2, '0')}`;
+
+      return weekRanges.map((w, idx) => {
+        const startStr = `${monthPrefix}-${String(w.start).padStart(2, '0')}`;
+        const endStr = `${monthPrefix}-${String(w.end).padStart(2, '0')}`;
+        const mins = filteredSessions.filter(s => s.date >= startStr && s.date <= endStr)
+          .reduce((sum, s) => sum + s.durationMinutes, 0);
+        const scaleCount = filteredScaleLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
+        const melodyCount = filteredMelodyLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
+        const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
+
+        const isCurrentWeekOfMonth = today >= startStr && today <= endStr;
+
+        return {
+          label: `Sem ${idx + 1}`,
+          subLabel: w.label,
+          minutes: mins,
+          isToday: isCurrentWeekOfMonth,
+          scaleCount, melodyCount, rhythmCount,
+          hasStudy: scaleCount + melodyCount + rhythmCount > 0,
+        };
+      });
+    }
+
+    if (periodInfo.mode === 'ultimos30') {
+      const now = new Date(today + 'T12:00:00');
+      const blocks = [
+        { daysAgoEnd: 0, daysAgoStart: 6, label: 'Sem 4 (reciente)' },
+        { daysAgoEnd: 7, daysAgoStart: 13, label: 'Sem 3' },
+        { daysAgoEnd: 14, daysAgoStart: 20, label: 'Sem 2' },
+        { daysAgoEnd: 21, daysAgoStart: 29, label: 'Sem 1' },
+      ].reverse();
+
+      return blocks.map((b, idx) => {
+        const dStart = new Date(now);
+        dStart.setDate(dStart.getDate() - b.daysAgoStart);
+        const dEnd = new Date(now);
+        dEnd.setDate(dEnd.getDate() - b.daysAgoEnd);
+        const startStr = dStart.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+        const endStr = dEnd.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+
+        const mins = filteredSessions.filter(s => s.date >= startStr && s.date <= endStr)
+          .reduce((sum, s) => sum + s.durationMinutes, 0);
+        const scaleCount = filteredScaleLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
+        const melodyCount = filteredMelodyLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
+        const rhythmCount = filteredRhythmLogs.filter((l: any) => l.date >= startStr && l.date <= endStr).length;
+
+        const isTodayBlock = b.daysAgoEnd === 0;
+
+        return {
+          label: `Bloque ${idx + 1}`,
+          subLabel: `${dStart.getDate()} ${dStart.toLocaleDateString('es-EC', { month: 'short' })}–${dEnd.getDate()} ${dEnd.toLocaleDateString('es-EC', { month: 'short' })}`,
+          minutes: mins,
+          isToday: isTodayBlock,
+          scaleCount, melodyCount, rhythmCount,
+          hasStudy: scaleCount + melodyCount + rhythmCount > 0,
+        };
+      });
+    }
+
+    if (periodInfo.mode === 'año') {
+      const y = periodInfo.year;
+      return Array.from({ length: 12 }, (_, idx) => {
+        const m = idx + 1;
+        const prefix = `${y}-${String(m).padStart(2, '0')}`;
+        const d = new Date(y, idx, 15);
+        const mins = filteredSessions.filter(s => s.date.startsWith(prefix)).reduce((sum, s) => sum + s.durationMinutes, 0);
+        const currentMonthIdx = new Date(today + 'T12:00:00').getMonth();
+        return {
+          label: d.toLocaleDateString('es-EC', { month: 'short' }),
+          subLabel: '',
+          minutes: mins,
+          isToday: idx === currentMonthIdx,
+          scaleCount: 0, melodyCount: 0, rhythmCount: 0,
+          hasStudy: false,
+        };
+      });
+    }
+
+    const now = new Date(today + 'T12:00:00');
+    return Array.from({ length: 12 }, (_, idx) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (11 - idx), 15);
+      const prefix = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const mins = filteredSessions.filter(s => s.date.startsWith(prefix)).reduce((sum, s) => sum + s.durationMinutes, 0);
+      return {
+        label: d.toLocaleDateString('es-EC', { month: 'short' }),
+        subLabel: `${d.getFullYear().toString().slice(2)}`,
+        minutes: mins,
+        isToday: idx === 11,
+        scaleCount: 0, melodyCount: 0, rhythmCount: 0,
+        hasStudy: false,
+      };
     });
-  }, [filteredSessions, filteredScaleLogs, filteredMelodyLogs, filteredRhythmLogs, period, today]);
+  }, [periodInfo, filteredSessions, filteredScaleLogs, filteredMelodyLogs, filteredRhythmLogs, today]);
 
   const maxActivity = Math.max(...activityData.map(d => d.minutes), 1);
 
@@ -188,8 +324,6 @@ export default function StatsPage() {
     );
   }
 
-  const periodLabel: Record<Period, string> = { semana: 'esta semana', mes: 'este mes', año: 'este año', todo: 'en total' };
-
   return (
     <div className="space-y-6">
 
@@ -198,19 +332,23 @@ export default function StatsPage() {
           <h1 className="page-title">📊 Estadísticas</h1>
           <p className="text-sm text-muted-foreground mt-1">Resumen detallado de tu práctica musical</p>
         </div>
-        <div className="flex gap-1.5">
-          {(['semana', 'mes', 'año', 'todo'] as Period[]).map(p => (
-            <button key={p} onClick={() => setPeriod(p)} className={`chip text-xs font-semibold ${period === p ? 'chip-active' : ''}`}>
-              {p === 'todo' ? 'Todo' : p.charAt(0).toUpperCase() + p.slice(1)}
+        <div className="flex flex-wrap gap-1.5">
+          {PERIOD_OPTIONS.map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => setPeriod(opt.id)}
+              className={`chip text-xs font-semibold ${period === opt.id ? 'chip-active shadow-sm' : ''}`}
+            >
+              {opt.shortLabel}
             </button>
           ))}
         </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatMini label="Tiempo total" value={formatDurationLong(totalMinutes)} sub={periodLabel[period]} emoji="⏱️" />
-        <StatMini label="Sesiones" value={filteredSessions.length} sub={periodLabel[period]} emoji="📋" />
-        <StatMini label="Días activos" value={activeDays} sub={periodLabel[period]} emoji="📅" />
+        <StatMini label="Tiempo total" value={formatDurationLong(totalMinutes)} sub={periodInfo.subLabel} emoji="⏱️" />
+        <StatMini label="Sesiones" value={filteredSessions.length} sub={periodInfo.subLabel} emoji="📋" />
+        <StatMini label="Días activos" value={uniqueDays} sub={periodInfo.subLabel} emoji="📅" />
         <StatMini label="Promedio/sesión" value={formatDuration(avgMinutes)} sub="por sesión" emoji="📈" />
       </div>
 
@@ -218,20 +356,32 @@ export default function StatsPage() {
         <div className="stat-card text-center">
           <p className="text-3xl mb-1">🎼</p>
           <p className="font-mono text-3xl font-extrabold text-blue-400 drop-shadow-sm">{filteredScaleLogs.length}</p>
-          <p className="text-xs font-semibold text-foreground/90 mt-1">prácticas de escalas</p>
-          <p className="text-xs text-muted-foreground font-medium">{uniqueScalesCount} escalas distintas</p>
+          <p className="text-xs font-semibold text-foreground/90 mt-1">
+            {filteredScaleLogs.length === 1 ? 'práctica de escalas' : 'prácticas de escalas'}
+          </p>
+          <p className="text-xs text-muted-foreground font-medium">
+            {uniqueScalesCount} {uniqueScalesCount === 1 ? 'escala distinta' : 'escalas distintas'}
+          </p>
         </div>
         <div className="stat-card text-center">
           <p className="text-3xl mb-1">🎵</p>
           <p className="font-mono text-3xl font-extrabold text-green-400 drop-shadow-sm">{filteredMelodyLogs.length}</p>
-          <p className="text-xs font-semibold text-foreground/90 mt-1">prácticas de melodías</p>
-          <p className="text-xs text-muted-foreground font-medium">{uniqueMelodiesCount} melodías distintas</p>
+          <p className="text-xs font-semibold text-foreground/90 mt-1">
+            {filteredMelodyLogs.length === 1 ? 'práctica de melodías' : 'prácticas de melodías'}
+          </p>
+          <p className="text-xs text-muted-foreground font-medium">
+            {uniqueMelodiesCount} {uniqueMelodiesCount === 1 ? 'melodía distinta' : 'melodías distintas'}
+          </p>
         </div>
         <div className="stat-card text-center">
           <p className="text-3xl mb-1">🥁</p>
           <p className="font-mono text-3xl font-extrabold text-orange-400 drop-shadow-sm">{filteredRhythmLogs.length}</p>
-          <p className="text-xs font-semibold text-foreground/90 mt-1">prácticas de ritmos</p>
-          <p className="text-xs text-muted-foreground font-medium">{uniqueRhythmsCount} ritmos distintos</p>
+          <p className="text-xs font-semibold text-foreground/90 mt-1">
+            {filteredRhythmLogs.length === 1 ? 'práctica de ritmos' : 'prácticas de ritmos'}
+          </p>
+          <p className="text-xs text-muted-foreground font-medium">
+            {uniqueRhythmsCount} {uniqueRhythmsCount === 1 ? 'ritmo distinto' : 'ritmos distintos'}
+          </p>
         </div>
       </div>
 
@@ -241,9 +391,9 @@ export default function StatsPage() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-orange-400">Racha actual</p>
             <p className="font-mono text-3xl sm:text-4xl font-extrabold text-foreground">
-              {streak.current} <span className="text-base font-medium text-muted-foreground">días</span>
+              {streak.current} <span className="text-base font-medium text-muted-foreground">{streak.current === 1 ? 'día' : 'días'}</span>
             </p>
-            <p className="text-xs font-semibold text-foreground/80 mt-0.5">Mejor: {streak.best} días</p>
+            <p className="text-xs font-semibold text-foreground/80 mt-0.5">Mejor racha: {streak.best} {streak.best === 1 ? 'día' : 'días'}</p>
           </div>
         </div>
         {bestSession ? (
@@ -253,7 +403,7 @@ export default function StatsPage() {
               <p className="text-xs font-bold uppercase tracking-wider text-primary">Mejor sesión del período</p>
               <p className="font-mono text-3xl sm:text-4xl font-extrabold text-amber-300">{formatDurationLong(bestSession.durationMinutes)}</p>
               <p className="text-xs font-semibold text-foreground/80 mt-0.5">
-                {instruments.find((i: InstrumentDef) => i.id === bestSession.instrument)?.emoji || '🎼'} {bestSession.date} {'★'.repeat(bestSession.rating)}
+                {instruments.find((i: InstrumentDef) => i.id === bestSession.instrument)?.emoji || '🎼'} {formatDateShort(bestSession.date)} {'★'.repeat(bestSession.rating)}
               </p>
             </div>
           </div>
@@ -263,39 +413,53 @@ export default function StatsPage() {
       </div>
 
       <div className="stat-card">
-        <h3 className="section-title mb-4">Actividad {period === 'semana' ? 'diaria' : 'semanal'}</h3>
-        <div className="flex items-end gap-2 h-40 pt-2 pb-1">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="section-title text-base">
+            Actividad {period === 'semana' ? 'diaria' : period === 'mes' || period === 'ultimos30' ? 'por semanas' : 'mensual'}
+          </h3>
+          <span className="text-xs font-mono font-medium text-muted-foreground">
+            {periodInfo.subLabel}
+          </span>
+        </div>
+        <div className="flex items-end gap-2 h-44 pt-2 pb-1">
           {activityData.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5 relative">
+            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5 relative group">
               <span className={`text-xs font-mono font-bold ${d.minutes > 0 ? 'text-amber-300' : 'text-muted-foreground/30'}`}>
                 {d.minutes > 0 ? formatDuration(d.minutes) : '—'}
               </span>
               <div
                 className={`w-full rounded-t-md transition-all duration-500 ${d.isToday ? 'ring-2 ring-primary ring-offset-1 ring-offset-card' : ''}`}
                 style={{
-                  height: `${Math.max((d.minutes / maxActivity) * 88, d.minutes > 0 ? 8 : 4)}px`,
+                  height: `${Math.max((d.minutes / maxActivity) * 95, d.minutes > 0 ? 8 : 4)}px`,
                   background: d.minutes > 0
                     ? `linear-gradient(to top, hsl(42 75% 45%), hsl(42 75% 58%))`
                     : 'hsl(var(--secondary))',
                   boxShadow: d.minutes > 0 ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
                 }}
               />
-              {period === 'semana' && d.hasStudy && (
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1">
+              {d.hasStudy && (
+                <div className="absolute bottom-9 left-1/2 -translate-x-1/2 flex gap-1">
                   {d.scaleCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-sm" />}
                   {d.melodyCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-sm" />}
                   {d.rhythmCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shadow-sm" />}
                 </div>
               )}
-              <span className={`text-xs font-mono font-bold uppercase ${d.isToday ? 'text-primary' : 'text-foreground/80'}`}>
-                {d.label.slice(0, 2)}
-              </span>
+              <div className="text-center leading-none">
+                <span className={`text-xs font-mono font-bold uppercase block ${d.isToday ? 'text-primary' : 'text-foreground/80'}`}>
+                  {d.label}
+                </span>
+                {d.subLabel && (
+                  <span className="text-[10px] text-muted-foreground block mt-0.5 font-mono">
+                    {d.subLabel}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
-        {period === 'semana' && (
+        {activityData.some(d => d.hasStudy) && (
           <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/10">
-            <p className="text-xs font-semibold text-muted-foreground">Estudio:</p>
+            <p className="text-xs font-semibold text-muted-foreground">Estudio marcado:</p>
             {[{ color: 'bg-blue-400', label: 'Escalas' }, { color: 'bg-green-400', label: 'Melodías' }, { color: 'bg-orange-400', label: 'Ritmos' }].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full ${color}`} />

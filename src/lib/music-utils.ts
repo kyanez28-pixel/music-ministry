@@ -60,26 +60,31 @@ export function formatDateShort(dateStr: string): string {
 }
 
 export function getStreak(sessions: PracticeSession[]): { current: number; best: number } {
-  if (sessions.length === 0) return { current: 0, best: 0 };
+  if (!sessions || sessions.length === 0) return { current: 0, best: 0 };
 
-  const uniqueDates = [...new Set(sessions.map(s => s.date))].sort();
   const today = getTodayEC();
   const yesterday = new Date(today + 'T12:00:00');
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
 
-  // Racha actual: contar desde hoy o ayer hacia atrás
-  let current = 0;
-  const lastDate = uniqueDates[uniqueDates.length - 1];
-  
-  // Solo cuenta racha si practicó hoy o ayer (no rompe por no practicar hoy todavía)
-  if (lastDate === today || lastDate === yesterdayStr) {
-    let checkDate = new Date(lastDate + 'T12:00:00');
-    const dateSet = new Set(uniqueDates);
+  // Fechas únicas registradas válidas (hasta hoy para evitar sesiones futuras erróneas)
+  const validDates = [...new Set(
+    sessions.map(s => s.date).filter(d => typeof d === 'string' && d.length === 10 && d <= today)
+  )].sort();
 
-    for (let i = 0; i < 365; i++) {
-      const dateStr = checkDate.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
-      if (dateSet.has(dateStr)) {
+  if (validDates.length === 0) return { current: 0, best: 0 };
+
+  const dateSet = new Set(validDates);
+
+  // Racha actual: comienza en hoy (si practicó hoy) o en ayer (si aún no practica hoy)
+  let current = 0;
+  const startCheck = dateSet.has(today) ? today : (dateSet.has(yesterdayStr) ? yesterdayStr : null);
+
+  if (startCheck) {
+    let checkDate = new Date(startCheck + 'T12:00:00');
+    while (true) {
+      const dStr = checkDate.toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
+      if (dateSet.has(dStr)) {
         current++;
         checkDate.setDate(checkDate.getDate() - 1);
       } else {
@@ -90,21 +95,20 @@ export function getStreak(sessions: PracticeSession[]): { current: number; best:
 
   // Mejor racha histórica
   let best = 0;
-  let streak = 0;
+  let running = 0;
 
-  for (let i = 0; i < uniqueDates.length; i++) {
+  for (let i = 0; i < validDates.length; i++) {
     if (i === 0) {
-      streak = 1;
+      running = 1;
     } else {
-      const prev = new Date(uniqueDates[i - 1] + 'T12:00:00');
-      const curr = new Date(uniqueDates[i] + 'T12:00:00');
+      const prev = new Date(validDates[i - 1] + 'T12:00:00');
+      const curr = new Date(validDates[i] + 'T12:00:00');
       const diffDays = Math.round((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
-      streak = diffDays === 1 ? streak + 1 : 1;
+      running = diffDays === 1 ? running + 1 : 1;
     }
-    best = Math.max(best, streak);
+    best = Math.max(best, running);
   }
 
-  // Si la racha actual supera la histórica (puede pasar si best no se actualizó)
   best = Math.max(best, current);
 
   return { current, best };
