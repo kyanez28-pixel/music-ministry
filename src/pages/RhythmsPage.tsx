@@ -498,14 +498,18 @@ export default function RhythmsPage() {
                           </button>
                           <h4 className={`font-semibold text-lg leading-tight cursor-pointer transition-colors ${isCheckedToday(rhm.id) ? 'text-primary' : 'hover:text-primary'}`} onClick={() => openEdit(rhm)}>{rhm.name}</h4>
                         </div>
-                        <div className="flex gap-4 text-[11px] text-muted-foreground/80 pl-7">
+                        <div className="flex items-center gap-3 text-xs text-foreground/90 font-medium pl-7">
                           {rhm.time_signature && <span>🕒 {rhm.time_signature}</span>}
-                          {rhm.bpm > 0 && <span className="font-mono">♩ {rhm.bpm} BPM</span>}
+                          {rhm.bpm > 0 && (
+                            <span className="font-mono bg-white/5 border border-white/10 text-amber-300 font-bold px-2 py-0.5 rounded">
+                              ♩ {rhm.bpm} BPM
+                            </span>
+                          )}
                         </div>
-                        {rhm.description && <p className="text-xs text-muted-foreground/70 line-clamp-2">{rhm.description}</p>}
+                        {rhm.description && <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{rhm.description}</p>}
                         <div className="flex items-center gap-2 pt-3 border-t border-white/5">
-                          {rhm.video_url && <Button variant="outline" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => window.open(rhm.video_url, '_blank')}><Play className="h-3 w-3 mr-1 fill-current" /> Video</Button>}
-                          <Button variant="secondary" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => openEdit(rhm)}>Ajustes</Button>
+                          {rhm.video_url && <Button variant="outline" size="sm" className="flex-1 h-8 text-xs font-semibold" onClick={() => window.open(rhm.video_url, '_blank')}><Play className="h-3 w-3 mr-1 fill-current" /> Video</Button>}
+                          <Button variant="secondary" size="sm" className="flex-1 h-8 text-xs font-semibold" onClick={() => openEdit(rhm)}>Ajustes</Button>
                         </div>
                       </div>
                     </div>
@@ -562,14 +566,18 @@ export default function RhythmsPage() {
                         </button>
                         <h4 className={`font-semibold text-lg leading-tight cursor-pointer transition-colors ${isCheckedToday(rhm.id) ? 'text-primary' : 'hover:text-primary'}`} onClick={() => openEdit(rhm)}>{rhm.name}</h4>
                       </div>
-                      <div className="flex gap-4 text-[11px] text-muted-foreground/80 pl-7">
+                      <div className="flex items-center gap-3 text-xs text-foreground/90 font-medium pl-7">
                         {rhm.time_signature && <span>🕒 {rhm.time_signature}</span>}
-                        {rhm.bpm > 0 && <span className="font-mono">♩ {rhm.bpm} BPM</span>}
+                        {rhm.bpm > 0 && (
+                          <span className="font-mono bg-white/5 border border-white/10 text-amber-300 font-bold px-2 py-0.5 rounded">
+                            ♩ {rhm.bpm} BPM
+                          </span>
+                        )}
                       </div>
-                      {rhm.description && <p className="text-xs text-muted-foreground/70 line-clamp-2">{rhm.description}</p>}
+                      {rhm.description && <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{rhm.description}</p>}
                       <div className="flex items-center gap-2 pt-3 border-t border-white/5">
-                        {rhm.video_url && <Button variant="outline" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => window.open(rhm.video_url, '_blank')}><Play className="h-3 w-3 mr-1 fill-current" /> Video</Button>}
-                        <Button variant="secondary" size="sm" className="flex-1 h-8 text-[11px]" onClick={() => openEdit(rhm)}>Ajustes</Button>
+                        {rhm.video_url && <Button variant="outline" size="sm" className="flex-1 h-8 text-xs font-semibold" onClick={() => window.open(rhm.video_url, '_blank')}><Play className="h-3 w-3 mr-1 fill-current" /> Video</Button>}
+                        <Button variant="secondary" size="sm" className="flex-1 h-8 text-xs font-semibold" onClick={() => openEdit(rhm)}>Ajustes</Button>
                       </div>
                     </div>
                   </div>

@@ -217,20 +217,20 @@ export default function DashboardPage() {
           <div className="stat-card group cursor-help">
             <div className="flex items-center gap-2 mb-2">
               <Flame className="h-4 w-4 text-orange-400 animate-pulse-glow group-hover:scale-110 transition-transform duration-300 drop-shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
-              <span className="text-xs font-semibold text-orange-400/90 tracking-wide uppercase">Racha</span>
+              <span className="text-xs font-bold text-orange-400 tracking-wider uppercase">Racha</span>
             </div>
-            <p className="font-mono text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-orange-400 to-red-500 drop-shadow-sm">{streak.current}</p>
-            <p className="text-xs text-muted-foreground mt-1">días · Mejor: {streak.best}</p>
+            <p className="font-mono text-3xl sm:text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-br from-orange-400 to-red-500 drop-shadow-sm">{streak.current}</p>
+            <p className="text-xs font-semibold text-foreground/80 mt-1">días · <span className="text-muted-foreground font-normal">Mejor: {streak.best}</span></p>
           </div>
         </AppTooltip>
         <AppTooltip content="El tiempo total que has dedicado a la música durante este mes.">
           <div className="stat-card cursor-help">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="h-4 w-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Este mes</span>
+              <span className="text-xs font-bold text-foreground/80 tracking-wider uppercase">Este mes</span>
             </div>
-            <p className="font-mono text-2xl font-bold text-foreground">{formatDurationLong(monthMinutes)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{thisMonthSessions.length} sesiones</p>
+            <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300 drop-shadow-sm">{formatDurationLong(monthMinutes)}</p>
+            <p className="text-xs font-semibold text-foreground/80 mt-1">{thisMonthSessions.length} sesiones</p>
           </div>
         </AppTooltip>
         {/* Instrument stats cards */}
@@ -241,11 +241,11 @@ export default function DashboardPage() {
             <AppTooltip key={i.id} content={`Tiempo dedicado practicando ${i.name} este mes.`}>
               <div className="stat-card group cursor-help">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm group-hover:-translate-y-1 transition-transform">{i.emoji}</span>
-                  <span className="text-xs tracking-wide uppercase text-muted-foreground">{i.name}</span>
+                  <span className="text-base group-hover:-translate-y-0.5 transition-transform">{i.emoji}</span>
+                  <span className="text-xs font-bold tracking-wider uppercase text-foreground/80">{i.name}</span>
                 </div>
-                <p className="font-mono text-2xl font-bold text-foreground drop-shadow-sm">{formatDurationLong(mins)}</p>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">{count} sesiones</p>
+                <p className="font-mono text-2xl sm:text-3xl font-extrabold text-foreground drop-shadow-sm">{formatDurationLong(mins)}</p>
+                <p className="text-xs font-semibold text-foreground/80 mt-1">{count} sesiones</p>
               </div>
             </AppTooltip>
           );
@@ -259,26 +259,26 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="section-title text-sm">Últimos 7 días</h3>
             {weekMinutes > 0 && (
-              <span className="text-xs font-mono text-primary">{formatDurationLong(weekMinutes)} esta semana</span>
+              <span className="text-xs font-mono font-bold text-amber-300 bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">{formatDurationLong(weekMinutes)} esta semana</span>
             )}
           </div>
-          <div className="flex items-end gap-1.5 h-32 pt-2">
+          <div className="flex items-end gap-2 h-36 pt-2 pb-1">
             {last7Days.map((d: any, i: number) => (
-              <div key={i} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
-                <span className={`text-[10px] font-mono tracking-tighter ${d.minutes > 0 ? (d.isToday ? 'text-primary font-medium' : 'text-muted-foreground') : 'opacity-0'}`}>
-                  {formatDuration(d.minutes)}
+              <div key={i} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5">
+                <span className={`text-xs font-mono font-bold ${d.minutes > 0 ? (d.isToday ? 'text-primary' : 'text-amber-300') : 'text-muted-foreground/30'}`}>
+                  {d.minutes > 0 ? formatDuration(d.minutes) : '—'}
                 </span>
                 <div
-                  className={`w-full rounded-t-sm transition-all duration-300 ${d.isToday ? 'ring-1 ring-primary' : ''}`}
+                  className={`w-full rounded-t-md transition-all duration-300 ${d.isToday ? 'ring-2 ring-primary ring-offset-1 ring-offset-card' : ''}`}
                   style={{
-                    height: `${Math.max((d.minutes / maxDayMins) * 80, d.minutes > 0 ? 6 : 0)}px`,
+                    height: `${Math.max((d.minutes / maxDayMins) * 88, d.minutes > 0 ? 8 : 4)}px`,
                     background: d.minutes > 0
-                      ? `hsl(42 60% 55% / ${0.4 + (d.minutes / maxDayMins) * 0.6})`
+                      ? `linear-gradient(to top, hsl(42 75% 45%), hsl(42 75% 58%))`
                       : 'hsl(var(--secondary))',
-                    minHeight: '4px',
+                    boxShadow: d.minutes > 0 ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
                   }}
                 />
-                <span className={`text-[10px] font-mono capitalize ${d.isToday ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                <span className={`text-xs font-mono font-bold uppercase ${d.isToday ? 'text-primary' : 'text-foreground/80'}`}>
                   {d.label.slice(0, 2)}
                 </span>
               </div>
@@ -290,20 +290,20 @@ export default function DashboardPage() {
         <div className="stat-card">
           <h3 className="section-title text-sm mb-4">Esta semana por categoría</h3>
           {catWeekMinutes.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Sin datos esta semana</p>
+            <p className="text-sm text-muted-foreground text-center py-6">Sin datos esta semana</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {catWeekMinutes.map(([cat, mins]) => {
                 const maxMins = catWeekMinutes[0][1];
                 return (
-                  <div key={cat}>
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="text-foreground">{CATEGORY_LABELS[cat]}</span>
-                      <span className="font-mono text-muted-foreground">{formatDurationLong(Math.round(mins))}</span>
+                  <div key={cat} className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-semibold text-foreground/95">{CATEGORY_LABELS[cat]}</span>
+                      <span className="font-mono font-bold text-amber-300">{formatDurationLong(Math.round(mins))}</span>
                     </div>
-                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-primary/70 rounded-full transition-all"
+                        className="h-full bg-gradient-to-r from-amber-500/70 to-primary rounded-full transition-all duration-500"
                         style={{ width: `${(mins / maxMins) * 100}%` }}
                       />
                     </div>
@@ -329,46 +329,44 @@ export default function DashboardPage() {
           >
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <Icon className={`h-6 w-6 mb-3 ${color} group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 drop-shadow-sm`} />
-            <p className="text-sm font-semibold tracking-wide text-foreground/90">{label}</p>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">{desc}</p>
+            <p className="text-sm font-semibold tracking-wide text-foreground/95">{label}</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mt-0.5 font-medium">{desc}</p>
           </button>
         ))}
       </div>
-
-
 
       {/* Recent sessions */}
       <div className="stat-card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="section-title">Sesiones Recientes</h3>
           {sessions.length > 5 && (
-            <button onClick={() => navigate('/history')} className="text-sm text-primary hover:underline">Ver todo →</button>
+            <button onClick={() => navigate('/history')} className="text-xs font-semibold text-primary hover:underline">Ver todo →</button>
           )}
         </div>
         {recent.length === 0 ? (
           <p className="text-muted-foreground text-sm py-8 text-center">Aún no hay sesiones registradas</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {recent.map((s: any) => (
               <AppTooltip key={s.id} content="Haz clic para ver o editar los detalles de esta sesión.">
                 <div
                   onClick={() => navigate('/history')}
-                  className="flex items-center justify-between py-2 px-3 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer"
+                  className="flex items-center justify-between py-2.5 px-3.5 rounded-lg bg-secondary/40 hover:bg-secondary/70 border border-white/5 transition-all cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <span className="text-lg shrink-0">
+                    <span className="text-xl shrink-0 p-1.5 rounded-lg bg-white/5 group-hover:scale-105 transition-transform">
                       {instruments.find((i: InstrumentDef) => i.id === s.instrument)?.emoji || '🎼'}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium">{formatDate(s.date)}</p>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-sm font-semibold text-foreground">{formatDate(s.date)}</p>
+                      <p className="text-xs font-medium text-foreground/80 truncate">
                         {s.categories.map(c => CATEGORY_LABELS[c]).join(', ')}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-mono text-sm">{formatDurationLong(s.durationMinutes)}</p>
-                    <p className="text-xs text-amber-400">{'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}</p>
+                  <div className="text-right shrink-0 ml-3">
+                    <p className="font-mono text-sm font-bold text-amber-300">{formatDurationLong(s.durationMinutes)}</p>
+                    <p className="text-xs text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.4)]">{'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}</p>
                   </div>
                 </div>
               </AppTooltip>

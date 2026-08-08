@@ -227,33 +227,33 @@ export default function PracticePage() {
               </div>
 
               {timerSeconds > 0 && (
-                <p className="text-xs text-muted-foreground font-mono">
+                <p className="text-xs text-foreground/80 font-mono font-semibold">
                   ≈ {formatDuration(timerMinutes)} practicado{timerMinutes !== 1 ? 's' : ''}
                 </p>
               )}
 
               {/* Barra de progreso hacia el próximo hito */}
               {timerSeconds > 0 && (
-                <div className="mx-auto max-w-xs space-y-1.5">
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>
+                <div className="mx-auto max-w-xs space-y-2">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-foreground/80">
                       {timerRunning
                         ? `Aviso en ${formatTimer(secondsToNext)}`
                         : 'Cronómetro pausado'}
                     </span>
-                    <span className="text-primary font-mono">
+                    <span className="text-amber-300 font-mono font-bold">
                       {timerRunning ? `próx: ${nextMilestoneMin}min` : ''}
                     </span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-1000 ${
-                        flashing ? 'bg-primary' : 'bg-primary/50'
+                        flashing ? 'bg-primary' : 'bg-gradient-to-r from-amber-500 to-primary'
                       }`}
                       style={{ width: `${progressToNext}%` }}
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground/50 text-center">
+                  <p className="text-xs text-muted-foreground font-medium text-center">
                     🔔 Aviso sonoro y visual cada 15 minutos
                   </p>
                 </div>

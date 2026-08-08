@@ -259,22 +259,22 @@ export default function HistoryPage() {
                 <h3 className="section-title text-sm">
                   {weeklyStats.isCurrentWeek ? 'Esta semana' : `Semana del ${weeklyStats.startLabel}`}
                 </h3>
-                <span className="text-[10px] text-muted-foreground font-mono">
+                <span className="px-2.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-xs font-mono font-medium text-foreground/90">
                   {weeklyStats.startLabel} – {weeklyStats.endLabel}
                 </span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setWeekOffset(o => o - 1)}
-                  className="p-1.5 rounded-md hover:bg-secondary transition-colors"
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
                   title="Semana anterior"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4 text-foreground/80" />
                 </button>
                 {!weeklyStats.isCurrentWeek && (
                   <button
                     onClick={() => setWeekOffset(0)}
-                    className="text-[10px] text-primary font-medium px-2 py-1 rounded hover:bg-primary/10 transition-colors"
+                    className="text-xs text-primary font-semibold px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
                   >
                     Hoy
                   </button>
@@ -282,56 +282,58 @@ export default function HistoryPage() {
                 <button
                   onClick={() => setWeekOffset(o => Math.min(0, o + 1))}
                   disabled={weeklyStats.isCurrentWeek}
-                  className="p-1.5 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   title="Semana siguiente"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 text-foreground/80" />
                 </button>
               </div>
             </div>
 
-            {/* Summary pills */}
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-baseline gap-1">
-                <span className="font-mono text-2xl font-bold text-foreground">
+            {/* Summary metrics row */}
+            <div className="flex flex-wrap items-baseline justify-between gap-3 pt-1">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-mono text-3xl sm:text-4xl font-extrabold text-foreground tracking-tight">
                   {formatDurationLong(weeklyStats.totalMinutes)}
                 </span>
-                <span className="text-xs text-muted-foreground">practicados</span>
+                <span className="text-xs font-medium text-muted-foreground">practicados</span>
               </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
-                <span>
-                  <span className="font-mono font-semibold text-foreground">{weeklyStats.totalSessions}</span> sesiones
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="metric-badge">
+                  <span className="font-mono font-bold text-amber-300 text-sm">{weeklyStats.totalSessions}</span> sesiones
                 </span>
-                <span>
-                  <span className="font-mono font-semibold text-foreground">{weeklyStats.activeDays}</span> días activos
+                <span className="metric-badge">
+                  <span className="font-mono font-bold text-amber-300 text-sm">{weeklyStats.activeDays}</span> días activos
                 </span>
               </div>
             </div>
 
-            {/* Day bars */}
-            <div className="flex items-end gap-1 h-20">
+            {/* Day bars - Clean, bright, clearly readable */}
+            <div className="flex items-end gap-2 h-28 pt-2 pb-1">
               {weeklyStats.days.map((d) => (
-                <div key={d.dateStr} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
-                  {d.minutes > 0 && (
-                    <span className="text-[9px] font-mono text-muted-foreground leading-none">
+                <div key={d.dateStr} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5">
+                  {d.minutes > 0 ? (
+                    <span className="text-xs font-mono font-bold text-amber-300 drop-shadow-sm leading-none">
                       {formatDuration(d.minutes)}
                     </span>
+                  ) : (
+                    <span className="text-[10px] font-mono text-muted-foreground/30 leading-none">—</span>
                   )}
                   <div
-                    className={`w-full rounded-t-sm transition-all duration-500 ${
-                      d.isToday ? 'ring-1 ring-primary ring-offset-1 ring-offset-card' : ''
+                    className={`w-full rounded-t-md transition-all duration-500 ${
+                      d.isToday ? 'ring-2 ring-primary ring-offset-2 ring-offset-card' : ''
                     }`}
                     style={{
-                      height: `${Math.max((d.minutes / weeklyStats.maxDayMins) * 60, d.minutes > 0 ? 6 : 2)}px`,
+                      height: `${Math.max((d.minutes / weeklyStats.maxDayMins) * 64, d.minutes > 0 ? 8 : 4)}px`,
                       background: d.minutes > 0
-                        ? `hsl(42 60% 55% / ${0.35 + (d.minutes / weeklyStats.maxDayMins) * 0.65})`
+                        ? `linear-gradient(to top, hsl(42 75% 45%), hsl(42 75% 58%))`
                         : 'hsl(var(--secondary))',
-                      minHeight: '2px',
+                      boxShadow: d.minutes > 0 ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
                     }}
                   />
                   <span
-                    className={`text-[10px] font-mono capitalize leading-none ${
-                      d.isToday ? 'text-primary font-bold' : 'text-muted-foreground'
+                    className={`text-xs font-mono font-bold uppercase leading-none ${
+                      d.isToday ? 'text-primary' : 'text-foreground/80'
                     }`}
                   >
                     {d.shortLabel}
@@ -340,22 +342,25 @@ export default function HistoryPage() {
               ))}
             </div>
 
-            {/* Top categories */}
+            {/* Top categories breakdown */}
             {weeklyStats.topCats.length > 0 && (
-              <div className="space-y-1.5 pt-1 border-t border-white/5">
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold">Categorías</p>
-                <div className="space-y-1.5">
+              <div className="space-y-2 pt-3 border-t border-white/10">
+                <div className="flex justify-between items-center text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                  <span>Categorías</span>
+                  <span>Tiempo</span>
+                </div>
+                <div className="space-y-2">
                   {weeklyStats.topCats.map(([cat, mins]) => {
                     const maxMins = weeklyStats.topCats[0]?.[1] || 1;
                     return (
-                      <div key={cat}>
-                        <div className="flex justify-between text-xs mb-0.5">
-                          <span className="text-foreground/80">{CATEGORY_LABELS[cat as PracticeCategory] ?? cat}</span>
-                          <span className="font-mono text-muted-foreground">{formatDurationLong(Math.round(mins))}</span>
+                      <div key={cat} className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="font-semibold text-foreground/95">{CATEGORY_LABELS[cat as PracticeCategory] ?? cat}</span>
+                          <span className="font-mono font-bold text-amber-300">{formatDurationLong(Math.round(mins))}</span>
                         </div>
-                        <div className="h-1 bg-secondary rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-primary/70 rounded-full transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-amber-500/70 to-primary rounded-full transition-all duration-500"
                             style={{ width: `${(mins / maxMins) * 100}%` }}
                           />
                         </div>
@@ -374,31 +379,33 @@ export default function HistoryPage() {
           {/* ── Session list ── */}
           {filtered.length === 0 ? (
             <div className="stat-card py-12 text-center">
-              <p className="text-muted-foreground">No hay sesiones que mostrar</p>
+              <p className="text-muted-foreground font-medium">No hay sesiones que mostrar</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {filtered.map((s: any) => (
                 <AppTooltip key={s.id} content="Haz clic para editar los detalles de esta sesión.">
                   <div onClick={() => openEdit(s.id)}
-                    className="stat-card flex items-center justify-between cursor-pointer hover:border-primary/30">
+                    className="stat-card flex items-center justify-between cursor-pointer hover:border-primary/40 group p-3.5 sm:p-4">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="text-xl shrink-0">
+                      <span className="text-2xl shrink-0 p-2 rounded-xl bg-white/5 border border-white/5 group-hover:scale-105 transition-transform">
                         {instruments.find((i: InstrumentDef) => i.id === s.instrument)?.emoji || '🎼'}
                       </span>
                       <div className="min-w-0">
-                        <p className="font-medium text-sm">{formatDate(s.date)}</p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        <p className="font-semibold text-sm text-foreground">{formatDate(s.date)}</p>
+                        <p className="text-xs font-medium text-foreground/80 truncate mt-0.5">
                           {s.categories.map((c: string) => CATEGORY_LABELS[c as PracticeCategory]).join(', ')}
                         </p>
                         {s.notes && (
-                          <p className="text-xs text-muted-foreground/60 mt-0.5 line-clamp-1">{s.notes}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{s.notes}</p>
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0 ml-2">
-                      <p className="font-mono text-sm">{formatDurationLong(s.durationMinutes)}</p>
-                      <p className="text-xs text-amber-400">{'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}</p>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="font-mono text-sm sm:text-base font-bold text-amber-300">{formatDurationLong(s.durationMinutes)}</p>
+                      <p className="text-xs text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)] mt-0.5">
+                        {'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}
+                      </p>
                     </div>
                   </div>
                 </AppTooltip>
@@ -410,19 +417,23 @@ export default function HistoryPage() {
 
       {/* ═══ CALENDAR VIEW ═══ */}
       {viewMode === 'calendar' && (
-        <div className="stat-card">
-          <div className="flex items-center justify-between mb-4">
+        <div className="stat-card space-y-4">
+          <div className="flex items-center justify-between">
             <button onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              className="p-1 hover:bg-secondary rounded"><ChevronLeft className="h-5 w-5" /></button>
-            <h3 className="section-title capitalize">
+              className="p-2 hover:bg-secondary rounded-lg border border-white/5 transition-colors">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <h3 className="section-title capitalize text-base sm:text-lg">
               {calendarMonth.toLocaleDateString('es-EC', { month: 'long', year: 'numeric' })}
             </h3>
             <button onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              className="p-1 hover:bg-secondary rounded"><ChevronRight className="h-5 w-5" /></button>
+              className="p-2 hover:bg-secondary rounded-lg border border-white/5 transition-colors">
+              <ChevronRight className="h-5 w-5" />
+            </button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center">
+          <div className="grid grid-cols-7 gap-1.5 text-center">
             {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
-              <div key={d} className="text-xs text-muted-foreground font-medium py-1">{d}</div>
+              <div key={d} className="text-xs text-foreground/75 font-bold py-1.5">{d}</div>
             ))}
             {calendarDays.map((day, i) => {
               if (day === null) return <div key={`pad-${i}`} />;
@@ -435,24 +446,32 @@ export default function HistoryPage() {
               const isToday = dateStr === today;
               return (
                 <div key={day}
-                  className={`relative aspect-square flex flex-col items-center justify-center rounded-md text-xs transition-colors cursor-default ${
-                    hasData ? 'text-primary-foreground' : isToday ? 'border border-primary text-primary' : 'text-muted-foreground'
+                  className={`relative aspect-square flex flex-col items-center justify-center rounded-lg text-xs transition-all cursor-default ${
+                    hasData
+                      ? 'bg-primary/20 border border-primary/40 text-foreground font-semibold shadow-sm'
+                      : isToday
+                        ? 'border-2 border-primary text-primary font-bold bg-primary/5'
+                        : 'text-foreground/70 bg-secondary/30 hover:bg-secondary/50'
                   }`}
-                  style={hasData ? { backgroundColor: `hsl(42 60% 55% / ${0.3 + intensity * 0.7})` } : {}}
+                  style={hasData ? { backgroundColor: `hsl(42 75% 58% / ${0.35 + intensity * 0.55})` } : {}}
                   title={hasData ? `${daySessions.length} sesión(es), ${formatDuration(totalMin)}` : undefined}
                 >
-                  <span className={`font-medium ${isToday && !hasData ? 'font-bold' : ''}`}>{day}</span>
-                  {hasData && <span className="text-[8px] leading-none mt-0.5">{formatDuration(totalMin)}</span>}
+                  <span className={`text-xs font-semibold ${isToday ? 'text-primary font-bold' : ''}`}>{day}</span>
+                  {hasData && (
+                    <span className="text-[10px] font-mono font-bold text-amber-300 leading-none mt-0.5">
+                      {formatDuration(totalMin)}
+                    </span>
+                  )}
                 </div>
               );
             })}
           </div>
-          <div className="flex items-center gap-2 mt-4 justify-center">
-            <span className="text-[10px] text-muted-foreground">Menos</span>
+          <div className="flex items-center gap-2 pt-2 justify-center border-t border-white/5">
+            <span className="text-xs text-muted-foreground font-medium">Menos</span>
             {[0.2, 0.4, 0.6, 0.8, 1].map(v => (
-              <div key={v} className="w-4 h-4 rounded-sm" style={{ backgroundColor: `hsl(42 60% 55% / ${0.3 + v * 0.7})` }} />
+              <div key={v} className="w-5 h-5 rounded-md border border-white/10" style={{ backgroundColor: `hsl(42 75% 58% / ${0.25 + v * 0.7})` }} />
             ))}
-            <span className="text-[10px] text-muted-foreground">Más</span>
+            <span className="text-xs text-muted-foreground font-medium">Más</span>
           </div>
         </div>
       )}
@@ -463,33 +482,35 @@ export default function HistoryPage() {
           {/* Summary cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="stat-card text-center">
-              <p className="text-xl font-bold text-primary font-mono">{formatDuration(stats.totalMinutes)}</p>
-              <p className="text-xs text-muted-foreground">Tiempo total</p>
+              <p className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono drop-shadow-sm">{formatDuration(stats.totalMinutes)}</p>
+              <p className="text-xs font-semibold text-foreground/80 mt-1">Tiempo total</p>
             </div>
             <div className="stat-card text-center">
-              <p className="text-xl font-bold text-primary font-mono">{stats.totalSessions}</p>
-              <p className="text-xs text-muted-foreground">Sesiones</p>
+              <p className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono drop-shadow-sm">{stats.totalSessions}</p>
+              <p className="text-xs font-semibold text-foreground/80 mt-1">Sesiones</p>
             </div>
             <div className="stat-card text-center">
-              <p className="text-xl font-bold text-primary font-mono">{stats.uniqueDays}</p>
-              <p className="text-xs text-muted-foreground">Días practicados</p>
+              <p className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono drop-shadow-sm">{stats.uniqueDays}</p>
+              <p className="text-xs font-semibold text-foreground/80 mt-1">Días practicados</p>
             </div>
             <div className="stat-card text-center">
-              <p className="text-xl font-mono font-bold text-primary">{formatDuration(stats.avgMinutes)}</p>
-              <p className="text-xs text-muted-foreground">Promedio/sesión</p>
+              <p className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono drop-shadow-sm">{formatDuration(stats.avgMinutes)}</p>
+              <p className="text-xs font-semibold text-foreground/80 mt-1">Promedio/sesión</p>
             </div>
           </div>
 
           {/* Monthly trend */}
           <div className="stat-card">
             <h3 className="section-title text-sm mb-3">Tendencia mensual</h3>
-            <div className="flex items-end gap-2 h-28">
+            <div className="flex items-end gap-2 h-36 pt-2 pb-1">
               {stats.monthlyMinutes.map(m => (
-                <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[9px] font-mono text-muted-foreground">{formatDuration(m.minutes)}</span>
-                  <div className="w-full rounded-t-sm bg-primary/80 transition-all"
-                    style={{ height: `${(m.minutes / maxMonthly) * 80}px`, minHeight: m.minutes > 0 ? '4px' : '0px' }} />
-                  <span className="text-[10px] text-muted-foreground capitalize">{m.label}</span>
+                <div key={m.label} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5">
+                  <span className="text-xs font-mono font-bold text-amber-300 leading-none">
+                    {m.minutes > 0 ? formatDuration(m.minutes) : '—'}
+                  </span>
+                  <div className="w-full rounded-t-md bg-gradient-to-t from-primary/60 to-primary transition-all duration-500"
+                    style={{ height: `${(m.minutes / maxMonthly) * 88}px`, minHeight: m.minutes > 0 ? '6px' : '2px' }} />
+                  <span className="text-xs font-semibold text-foreground/80 capitalize">{m.label}</span>
                 </div>
               ))}
             </div>
@@ -498,17 +519,20 @@ export default function HistoryPage() {
           {/* Top categories */}
           <div className="stat-card">
             <h3 className="section-title text-sm mb-3">Categorías más practicadas</h3>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {stats.topCategories.map(([cat, count]) => {
                 const maxCount = stats.topCategories[0]?.[1] || 1;
                 const mins = Math.round(stats.catMinutes[cat] || 0);
                 return (
-                  <div key={cat} className="flex items-center gap-2">
-                    <span className="text-xs w-36 shrink-0">{CATEGORY_LABELS[cat as PracticeCategory]}</span>
-                    <div className="flex-1 h-2.5 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${(count / maxCount) * 100}%` }} />
+                  <div key={cat} className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-semibold text-foreground/95">{CATEGORY_LABELS[cat as PracticeCategory]}</span>
+                      <span className="font-mono font-bold text-amber-300">{count} ses. · {formatDuration(mins)}</span>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground w-20 text-right">{count} · {formatDuration(mins)}</span>
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-amber-500/70 to-primary rounded-full transition-all duration-500"
+                        style={{ width: `${(count / maxCount) * 100}%` }} />
+                    </div>
                   </div>
                 );
               })}
@@ -518,17 +542,17 @@ export default function HistoryPage() {
           {/* Rating distribution */}
           <div className="stat-card">
             <h3 className="section-title text-sm mb-3">Calidad de sesiones</h3>
-            <div className="flex items-end gap-2 h-16">
+            <div className="flex items-end gap-2 h-20 pt-2 pb-1">
               {stats.ratingDist.map(({ rating, count }) => (
-                <div key={rating} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[10px] font-mono text-muted-foreground">{count}</span>
-                  <div className="w-full rounded-t-sm"
+                <div key={rating} className="flex-1 flex flex-col items-center justify-end h-full gap-1">
+                  <span className="text-xs font-mono font-bold text-amber-300">{count}</span>
+                  <div className="w-full rounded-t-md transition-all duration-500"
                     style={{
-                      height: `${(count / stats.maxRatingCount) * 48}px`,
-                      minHeight: count > 0 ? '4px' : '0px',
-                      background: `hsl(42 60% ${30 + rating * 8}%)`,
+                      height: `${(count / stats.maxRatingCount) * 44}px`,
+                      minHeight: count > 0 ? '6px' : '2px',
+                      background: `linear-gradient(to top, hsl(42 75% ${30 + rating * 6}%), hsl(42 75% ${40 + rating * 6}%))`,
                     }} />
-                  <span className="text-amber-400 text-xs">{'★'.repeat(rating)}</span>
+                  <span className="text-amber-400 text-xs font-bold">{'★'.repeat(rating)}</span>
                 </div>
               ))}
             </div>

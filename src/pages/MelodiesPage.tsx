@@ -1110,22 +1110,26 @@ function MelodyCard({ melody, images, isChecked, onToggle, onEdit, onViewImages,
             </div>
           )}
 
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1">
-            <span className="flex items-center gap-1">
-              <span className="opacity-80">
+          <div className="flex items-center justify-between text-xs text-foreground/90 mt-1 font-medium">
+            <span className="flex items-center gap-1.5">
+              <span className="text-sm">
                 {typeof melody.instrument === 'string' && melody.instrument !== 'ambos' 
                   ? (instruments.find((i: any) => i.id === melody.instrument)?.emoji || '🎼') 
                   : '🎼'}
               </span>
-              <span>{melody.key || '—'}</span>
+              <span className="font-semibold">{melody.key || '—'}</span>
               <span className="opacity-40">·</span>
               <span>{melody.time_signature || '—'}</span>
             </span>
-            {melody.bpm > 0 && <span className="font-mono bg-secondary/50 px-1.5 rounded text-[10px]">{melody.bpm} BPM</span>}
+            {melody.bpm > 0 && (
+              <span className="font-mono bg-white/5 border border-white/10 text-amber-300 font-bold px-2 py-0.5 rounded text-xs">
+                {melody.bpm} BPM
+              </span>
+            )}
           </div>
 
           {cleanDescription && (
-            <p className="text-[11px] text-muted-foreground/60 mt-2 line-clamp-2 italic leading-relaxed">{cleanDescription}</p>
+            <p className="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed">{cleanDescription}</p>
           )}
 
           {/* Video buttons */}
