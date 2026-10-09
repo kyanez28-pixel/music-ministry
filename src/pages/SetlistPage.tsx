@@ -21,7 +21,7 @@ const GENRES: { value: SongGenre; label: string; emoji: string }[] = [
   { value: 'instrumental', label: 'Instrumental', emoji: '🎹' },
 ];
 
-const INSTRUMENT_EMOJI = { piano: '🎹', guitarra: '🎸', ukelele: '🪗', ambos: '🎼' };
+const INSTRUMENT_EMOJI = { piano: '🎹', guitarra: '🎸', ukelele: '🪕', ambos: '🎼' };
 const KEYS_COMMON = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'Cm', 'Dm', 'Em', 'Fm', 'Gm', 'Am', 'Bm'];
 
 export default function SetlistPage() {

@@ -445,7 +445,7 @@ export default function MelodiesPage() {
               {(['piano', 'guitarra', 'ukelele'] as const).map(i => (
                 <button key={i} onClick={() => setPracticeInstrument(i)}
                   className={`chip text-xs ${practiceInstrument === i ? 'chip-active' : ''}`}>
-                  {i === 'piano' ? '🎹' : i === 'guitarra' ? '🎸' : '🪗'} {i}
+                  {i === 'piano' ? '🎹' : i === 'guitarra' ? '🎸' : '🪕'} {i}
                 </button>
               ))}
             </div>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useLocalStorage } from './use-local-storage';
 import { InstrumentDef, DEFAULT_INSTRUMENTS } from '@/types/music';
 
@@ -8,6 +9,22 @@ export function useInstruments() {
     INSTRUMENTS_KEY,
     DEFAULT_INSTRUMENTS
   );
+
+  // Migración automática: corregir emoji de ukelele si tenía el acordeón 🪗
+  useEffect(() => {
+    let hasOutdatedEmoji = false;
+    const fixed = instruments.map((inst: InstrumentDef) => {
+      if (inst.id === 'ukelele' && inst.emoji === '🪗') {
+        hasOutdatedEmoji = true;
+        return { ...inst, emoji: '🪕' };
+      }
+      return inst;
+    });
+
+    if (hasOutdatedEmoji) {
+      setInstruments(fixed);
+    }
+  }, [instruments, setInstruments]);
 
   const addInstrument = (name: string, emoji: string) => {
     const id = name.toLowerCase().trim().replace(/\s+/g, '-');

@@ -19,7 +19,7 @@ interface InstrumentSettingsProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const EMOJI_OPTIONS = ['🎹', '🎸', '🥁', '🎻', '🎺', '🎷', '🎤', '🪕', '🪗', '📻', '🎼', '🎵'];
+const EMOJI_OPTIONS = ['🎹', '🎸', '🪕', '🥁', '🎻', '🎺', '🎷', '🎤', '🎼', '🎵', '🪗', '📻'];
 
 export function InstrumentSettings({ open, onOpenChange }: InstrumentSettingsProps) {
   const { instruments, addInstrument, removeInstrument } = useInstruments();

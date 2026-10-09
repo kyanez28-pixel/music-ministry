@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useSessions, useScaleLogs, useRhythmPracticeLogs, useSongs, useSetlists } from '@/hooks/use-music-data';
+import { useSessions, useScaleLogs, useScales, useRhythmPracticeLogs, useSongs, useSetlists } from '@/hooks/use-music-data';
 import { getStreak, getTotalMinutes, getSessionCount, formatDuration, formatDurationLong, formatDate, getTodayEC, getMonday } from '@/lib/music-utils';
+import { PREDEFINED_SCALES } from '@/lib/predefined-scales';
 import { CATEGORY_LABELS, type PracticeCategory } from '@/types/music';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { LoadingCard } from '@/components/ui/LoadingCard';
 export default function DashboardPage() {
   const [sessions = [], , isLoadingSessions] = useSessions();
   const [scaleLogs = [], , isLoadingScales] = useScaleLogs();
+  const [customScales = []] = useScales();
   const [rhythmPracticeLogs = [], , isLoadingRhythms] = useRhythmPracticeLogs();
   const [songs = [], , isLoadingSongs] = useSongs();
   const [setlists = [], , isLoadingSetlists] = useSetlists();
@@ -171,12 +173,16 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-primary/70 font-bold mb-2">Escalas</p>
                       <div className="space-y-1">
-                        {todayScaleLogsFull.map((l: any, idx: number) => (
-                          <div key={idx} className="text-[10px] py-1 px-2 rounded bg-primary/5 text-foreground/80 flex items-center justify-between">
-                            <span>{l.scale_id}</span>
-                            <span className="text-[9px] opacity-70">practicada</span>
-                          </div>
-                        ))}
+                        {todayScaleLogsFull.map((l: any, idx: number) => {
+                          const scaleObj = PREDEFINED_SCALES.find(s => s.id === l.scale_id) || (customScales as any[]).find(s => s.id === l.scale_id);
+                          const scaleLabel = scaleObj?.label || (scaleObj as any)?.name || l.scale_id;
+                          return (
+                            <div key={idx} className="text-[10px] py-1 px-2 rounded bg-primary/5 text-foreground/80 flex items-center justify-between">
+                              <span className="font-medium text-foreground/90">{scaleLabel}</span>
+                              <span className="text-[9px] text-primary/80 font-mono">practicada</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

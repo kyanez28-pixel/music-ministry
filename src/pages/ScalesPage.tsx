@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSessions, useScaleLogs, useScales, useScaleFolders, useScaleImages } from '@/hooks/use-music-data';
-import { generateId, getTodayEC } from '@/lib/music-utils';
+import { generateId, getTodayEC, formatDate } from '@/lib/music-utils';
 import { PREDEFINED_SCALES, SCALE_TYPE_OPTIONS, NOTES, NOTE_EN, SCALE_THEORY } from '@/lib/predefined-scales';
 import type { Instrument, ScalePracticeLog } from '@/types/music';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,7 +8,11 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight, Trash2, Pencil, Upload, X, Image as ImageIcon, BarChart3, Link2, ChevronUp } from 'lucide-react';
+import {
+  Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight,
+  Trash2, Pencil, Upload, X, Image as ImageIcon, BarChart3, Link2, ChevronUp,
+  Sparkles, Calendar, CheckCircle2, History, RotateCcw, Flame, Check
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProgressionBuilder } from '@/components/ProgressionBuilder';
@@ -43,6 +47,7 @@ export default function ScalesPage() {
   const [filterType, setFilterType] = useState<string>('todos');
   const [filterNote, setFilterNote] = useState<string>('todos');
   const [instrument, setInstrument] = useState<Instrument>('piano');
+  const [dailyFilter, setDailyFilter] = useState<'todos' | 'hoy' | 'pendientes' | 'frecuentes'>('todos');
   const { instruments } = useInstruments();
   const [search, setSearch] = useState('');
 
@@ -208,14 +213,7 @@ export default function ScalesPage() {
 
   const today = getTodayEC();
 
-  const todayChecked = useMemo(() => {
-    const set = new Set<string>();
-    (scaleLogs || [])
-      .filter((l: any) => l.date === today && l.instrument === instrument)
-      .forEach((l: any) => set.add(l.scale_id));
-    return set;
-  }, [scaleLogs, today, instrument]);
-
+  // All scales combined (predefined + custom)
   const allScales = useMemo(() => {
     const mappedCustom = (customScales || []).map((s: any) => ({
       id: s.id,
@@ -235,12 +233,74 @@ export default function ScalesPage() {
     return [...mappedPredefined, ...mappedCustom];
   }, [customScales, scaleVideos]);
 
-  const filtered = useMemo(() => allScales
-    .filter((s: any) => filterType === 'todos' || s.scaleType === filterType)
-    .filter((s: any) => filterNote === 'todos' || s.note === filterNote)
-    .filter((s: any) => !search.trim() || s.label.toLowerCase().includes(search.toLowerCase()))
-    .filter((s: any) => filterFolder === 'todos' || s.folder_id === filterFolder),
-  [filterType, filterNote, search, allScales, filterFolder]);
+  // Statistics across all scale logs
+  const { practiceCount, lastPracticed } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const lastDates: Record<string, string> = {};
+    (scaleLogs || []).forEach((l: any) => {
+      counts[l.scale_id] = (counts[l.scale_id] || 0) + 1;
+      if (!lastDates[l.scale_id] || l.date > lastDates[l.scale_id]) {
+        lastDates[l.scale_id] = l.date;
+      }
+    });
+    return { practiceCount: counts, lastPracticed: lastDates };
+  }, [scaleLogs]);
+
+  const maxPractice = Math.max(1, ...Object.values(practiceCount));
+
+  // Today checked for active instrument
+  const todayChecked = useMemo(() => {
+    const set = new Set<string>();
+    (scaleLogs || [])
+      .filter((l: any) => l.date === today && l.instrument === instrument)
+      .forEach((l: any) => set.add(l.scale_id));
+    return set;
+  }, [scaleLogs, today, instrument]);
+
+  // Helper for human-readable relative practice info
+  const getRelativePracticeLabel = (scaleId: string, isCheckedToday: boolean) => {
+    if (isCheckedToday) {
+      return { label: 'Practicada hoy', isToday: true, badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
+    }
+    const lastDate = lastPracticed[scaleId];
+    if (!lastDate) {
+      return { label: 'Sin practicar', isToday: false, badgeClass: 'text-muted-foreground/60 border-white/5 bg-white/5' };
+    }
+    if (lastDate === today) {
+      return { label: 'Practicada hoy', isToday: true, badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
+    }
+    const todayD = new Date(today + 'T12:00:00');
+    const pastD = new Date(lastDate + 'T12:00:00');
+    const diffDays = Math.round((todayD.getTime() - pastD.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) {
+      return { label: 'Ayer', isToday: false, badgeClass: 'bg-amber-400/10 text-amber-300 border-amber-400/20' };
+    }
+    if (diffDays <= 6) {
+      return { label: `Hace ${diffDays} días`, isToday: false, badgeClass: 'text-muted-foreground/80 border-white/10 bg-white/5' };
+    }
+    if (diffDays <= 29) {
+      return { label: `Hace ${Math.floor(diffDays / 7)} sem`, isToday: false, badgeClass: 'text-muted-foreground/70 border-white/5 bg-white/5' };
+    }
+    return { label: formatDate(lastDate), isToday: false, badgeClass: 'text-muted-foreground/70 border-white/5 bg-white/5' };
+  };
+
+  // Filtered scales
+  const filtered = useMemo(() => {
+    let result = allScales
+      .filter((s: any) => filterType === 'todos' || s.scaleType === filterType)
+      .filter((s: any) => filterNote === 'todos' || s.note === filterNote)
+      .filter((s: any) => !search.trim() || s.label.toLowerCase().includes(search.toLowerCase()))
+      .filter((s: any) => filterFolder === 'todos' || s.folder_id === filterFolder);
+
+    if (dailyFilter === 'hoy') {
+      result = result.filter((s: any) => todayChecked.has(s.id));
+    } else if (dailyFilter === 'pendientes') {
+      result = result.filter((s: any) => !todayChecked.has(s.id));
+    } else if (dailyFilter === 'frecuentes') {
+      result = [...result].sort((a: any, b: any) => (practiceCount[b.id] || 0) - (practiceCount[a.id] || 0));
+    }
+    return result;
+  }, [filterType, filterNote, search, allScales, filterFolder, dailyFilter, todayChecked, practiceCount]);
 
   const groupedScales = useMemo(() => {
     const groups = (folders || []).map((f: any) => ({
@@ -251,13 +311,40 @@ export default function ScalesPage() {
     return { groups, unfoldered };
   }, [folders, filtered]);
 
-  const practiceCount = useMemo(() => {
-    const counts: Record<string, number> = {};
-    (scaleLogs || []).forEach((l: any) => { counts[l.scale_id] = (counts[l.scale_id] || 0) + 1; });
-    return counts;
-  }, [scaleLogs]);
+  // Today practiced scales list
+  const todayPracticedScales = useMemo(() => {
+    return allScales.filter((s: any) => todayChecked.has(s.id));
+  }, [allScales, todayChecked]);
 
-  const maxPractice = Math.max(1, ...Object.values(practiceCount));
+  // History grouped by date
+  const logsByDate = useMemo(() => {
+    const map = new Map<string, any[]>();
+    (scaleLogs || []).forEach((l: any) => {
+      const list = map.get(l.date) || [];
+      list.push(l);
+      map.set(l.date, list);
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, logs]) => {
+        const enhancedLogs = logs.map((l: any) => {
+          const scaleObj = allScales.find((s: any) => s.id === l.scale_id);
+          return {
+            ...l,
+            scale: scaleObj,
+            label: scaleObj?.label || l.scale_id,
+            theory: scaleObj ? SCALE_THEORY[scaleObj.scaleType] : null,
+            video_url: scaleObj?.video_url || '',
+          };
+        });
+        return {
+          date,
+          logs: enhancedLogs,
+          count: logs.length,
+          isToday: date === today,
+        };
+      });
+  }, [scaleLogs, allScales, today]);
 
   const toggleScale = (scale_id: string) => {
     if (todayChecked.has(scale_id)) {
@@ -265,13 +352,19 @@ export default function ScalesPage() {
         !(l.scale_id === scale_id && l.date === today && l.instrument === instrument)
       ));
     } else {
-      const log: ScalePracticeLog = { scale_id, date: today, instrument };
+      const log: ScalePracticeLog = {
+        id: generateId(),
+        scale_id,
+        date: today,
+        instrument,
+        created_at: new Date().toISOString(),
+      };
       setScaleLogs((prev: any[]) => [...prev, log]);
     }
   };
 
   const toggleAll = () => {
-    const allChecked = filtered.every((s: any) => todayChecked.has(s.id));
+    const allChecked = filtered.length > 0 && filtered.every((s: any) => todayChecked.has(s.id));
     if (allChecked) {
       setScaleLogs((prev: any[]) => prev.filter((l: any) =>
         !(filtered.some((s: any) => s.id === l.scale_id) && l.date === today && l.instrument === instrument)
@@ -279,16 +372,25 @@ export default function ScalesPage() {
     } else {
       const newLogs: ScalePracticeLog[] = filtered
         .filter((s: any) => !todayChecked.has(s.id))
-        .map((s: any) => ({ scale_id: s.id, date: today, instrument }));
+        .map((s: any) => ({
+          id: generateId(),
+          scale_id: s.id,
+          date: today,
+          instrument,
+          created_at: new Date().toISOString(),
+        }));
       setScaleLogs((prev: any[]) => [...prev, ...newLogs]);
     }
   };
 
   const saveSession = () => {
     const checkedToday = (scaleLogs || []).filter((l: any) => l.date === today && l.instrument === instrument);
-    if (checkedToday.length === 0) { toast.error('Marca al menos una escala antes de guardar'); return; }
+    if (checkedToday.length === 0) {
+      toast.error('Marca al menos una escala antes de guardar la sesión');
+      return;
+    }
     const scaleNames = checkedToday
-      .map((l: any) => PREDEFINED_SCALES.find((s: any) => s.id === l.scale_id)?.label)
+      .map((l: any) => allScales.find((s: any) => s.id === l.scale_id)?.label)
       .filter(Boolean).join(', ');
     const notesText = `Escalas (${checkedToday.length}): ${scaleNames}`;
     const existingSession = (sessions || []).find((s: any) =>
@@ -300,13 +402,26 @@ export default function ScalesPage() {
       ));
     } else {
       setSessions((prev: any[]) => [...prev, {
-        id: generateId(), date: today, instrument,
-        durationMinutes: 0,
-        categories: ['escalas' as const], notes: notesText, rating: 3, goal: '',
+        id: generateId(),
+        date: today,
+        instrument,
+        durationMinutes: Math.max(15, checkedToday.length * 5),
+        categories: ['escalas' as const],
+        notes: notesText,
+        rating: 4,
+        goal: 'Práctica diaria de escalas',
       }]);
     }
-    setScaleLogs((prev: any[]) => prev.filter((l: any) => !(l.date === today && l.instrument === instrument)));
-    toast.success(`¡Sesión guardada! ${checkedToday.length} escala${checkedToday.length !== 1 ? 's' : ''} registrada${checkedToday.length !== 1 ? 's' : ''}`);
+    // Preservamos scaleLogs intactos para que el registro diario no se pierda
+    toast.success(`¡Sesión guardada! Tus ${checkedToday.length} escalas quedan registradas en tu historial.`);
+  };
+
+  const deleteLog = (logId?: string, scaleId?: string, date?: string, inst?: string) => {
+    setScaleLogs((prev: any[]) => prev.filter((l: any) => {
+      if (logId && l.id) return l.id !== logId;
+      return !(l.scale_id === scaleId && l.date === date && l.instrument === inst);
+    }));
+    toast.success('Registro de escala eliminado');
   };
 
   const checkedCount = todayChecked.size;
@@ -324,82 +439,155 @@ export default function ScalesPage() {
     const progressions = progressionStr ? progressionStr.split('\n') : [];
     const hasVideo = urls.length > 0 || !!progressionStr;
     const isPlaying = playingScaleId === scale.id;
+    const relPractice = getRelativePracticeLabel(scale.id, checked);
 
     return (
-      <div key={scale.id} className={`stat-card transition-all ${
-        checked ? 'border-primary/40 bg-primary/10' : 'border-white/5 bg-white/5'
-      }`}>
+      <div
+        key={scale.id}
+        className={`stat-card transition-all duration-300 relative ${
+          checked
+            ? 'border-amber-400/50 bg-gradient-to-br from-amber-500/15 via-primary/10 to-card/90 shadow-[0_4px_22px_rgba(245,158,11,0.16)] ring-1 ring-amber-400/35'
+            : 'border-white/5 bg-white/5 hover:border-white/15 hover:bg-white/[0.07]'
+        }`}
+      >
         {/* Main row */}
         <label className="flex items-start gap-3 cursor-pointer group">
-          <Checkbox checked={checked} onCheckedChange={() => toggleScale(scale.id)}
-            className="border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary mt-0.5" />
+          <Checkbox
+            checked={checked}
+            onCheckedChange={() => toggleScale(scale.id)}
+            className={`border-white/25 mt-0.5 transition-transform duration-200 ${
+              checked
+                ? 'bg-amber-400 border-amber-400 text-black shadow-[0_0_10px_rgba(251,191,36,0.5)] scale-110'
+                : 'hover:border-primary'
+            }`}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <span className={`text-sm font-semibold truncate block ${checked ? 'text-primary' : 'text-foreground'}`}>
-                  {displayLabel}
-                </span>
-                {theory && (
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
-                    style={{ background: theory.color+'22', color: theory.color }}>
-                    {theory.label}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`text-sm font-semibold truncate block ${checked ? 'text-amber-300 drop-shadow-sm font-bold' : 'text-foreground'}`}>
+                    {displayLabel}
+                  </span>
+                  {checked && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-in fade-in zoom-in-95 duration-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Hoy
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {theory && (
+                    <span
+                      className="text-[10px] font-medium px-1.5 py-0.5 rounded-full inline-block"
+                      style={{ background: theory.color + '22', color: theory.color }}
+                    >
+                      {theory.label}
+                    </span>
+                  )}
+
+                  {!checked && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${relPractice.badgeClass}`}>
+                      {relPractice.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                {count > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold border transition-colors ${
+                      checked
+                        ? 'bg-amber-400/20 text-amber-300 border-amber-400/30'
+                        : 'bg-white/5 text-muted-foreground border-white/10'
+                    }`}
+                    title={`Practicada ${count} veces en total`}
+                  >
+                    {count}×
                   </span>
                 )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                {count > 0 && <span className="text-[10px] text-muted-foreground font-mono">{count}×</span>}
-                {allImages.some((img: any) => img.scale_id === scale.id) && <ImageIcon className="h-3 w-3 text-primary/60" />}
+                {allImages.some((img: any) => img.scale_id === scale.id) && (
+                  <ImageIcon className="h-3 w-3 text-primary/60" />
+                )}
+
                 {/* Play button: red when has URL, shows player inline */}
                 <button
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault();
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
                     if (hasVideo) setPlayingScaleId(isPlaying ? null : scale.id);
                     else openVideoEdit(e, scale);
                   }}
-                  className={`p-0.5 rounded transition-colors ${
+                  className={`p-0.5 rounded transition-all ${
                     hasVideo
-                      ? isPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
+                      ? isPlaying
+                        ? 'text-red-400 scale-110 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                        : 'text-red-500 hover:text-red-400 hover:scale-110'
                       : 'text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-muted-foreground'
                   }`}
                   title={hasVideo ? (isPlaying ? 'Cerrar videos' : 'Ver videos') : 'Agregar video'}
                 >
                   <Play className="h-3.5 w-3.5" fill={hasVideo ? 'currentColor' : 'none'} />
                 </button>
+
                 {/* Edit video link (only when has URL) */}
                 {hasVideo && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); openVideoEdit(e, scale); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      openVideoEdit(e, scale);
+                    }}
                     className="p-0.5 rounded text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-primary transition-all relative"
                     title="Editar enlaces de video"
                   >
                     <Link2 className="h-3 w-3" />
                     {urls.length > 1 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-[8px] text-white w-3 h-3 flex items-center justify-center rounded-full">
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-[8px] text-white w-3 h-3 flex items-center justify-center rounded-full font-bold">
                         {urls.length}
                       </span>
                     )}
                   </button>
                 )}
-                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditScale(scale); }}
-                  className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity p-0.5">
+
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openEditScale(scale);
+                  }}
+                  className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity p-0.5"
+                  title="Organizar o añadir imágenes"
+                >
                   <Pencil className="h-3 w-3" />
                 </button>
               </div>
             </div>
-            <div className="h-1 bg-white/5 rounded-full overflow-hidden mt-2">
-              <div className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${progressPct}%`, background: theory?.color ?? 'hsl(var(--primary))' }} />
+
+            {/* Progress bar */}
+            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-2.5">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  checked ? 'shadow-[0_0_8px_rgba(251,191,36,0.6)]' : ''
+                }`}
+                style={{
+                  width: `${progressPct}%`,
+                  background: checked ? 'linear-gradient(90deg, #f59e0b, #4ade80)' : (theory?.color ?? 'hsl(var(--primary))'),
+                }}
+              />
             </div>
           </div>
         </label>
 
         {/* Inline video player */}
         {isPlaying && hasVideo && (
-          <div className="mt-3 flex flex-col gap-4">
+          <div className="mt-3 flex flex-col gap-4 animate-in fade-in duration-200">
             {urls.map((url: string, idx: number) => {
               const ytId = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ?? null;
               const prog = progressions[idx];
               return (
-                <div key={idx} className="flex flex-col rounded-lg border border-white/10 bg-black overflow-hidden">
+                <div key={idx} className="flex flex-col rounded-lg border border-white/10 bg-black overflow-hidden shadow-2xl">
                   {ytId ? (
                     <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
                       <iframe
@@ -410,14 +598,18 @@ export default function ScalesPage() {
                       />
                     </div>
                   ) : (
-                    <a href={url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30">
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-4 text-sm text-primary hover:bg-primary/10 transition-colors bg-secondary/30"
+                    >
                       <Play className="h-4 w-4" /> Abrir enlace {urls.length > 1 ? idx + 1 : ''}
                     </a>
                   )}
                   {prog && prog.trim() !== '' && (
                     <div className="p-3 bg-primary/5 border-t border-white/10">
-                      <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1">Progresión / Notas</p>
+                      <p className="text-[10px] text-primary/80 uppercase tracking-widest mb-1 font-bold">Progresión / Notas</p>
                       <p className="font-mono text-base text-foreground/90 font-semibold">{prog}</p>
                     </div>
                   )}
@@ -452,19 +644,27 @@ export default function ScalesPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <TabsList className="glass-panel p-1">
               <TabsTrigger value="practica" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
-                <ListMusic className="h-4 w-4" /> Practice
+                <ListMusic className="h-4 w-4" /> Práctica
+              </TabsTrigger>
+              <TabsTrigger value="registro" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
+                <Calendar className="h-4 w-4" /> Registro Diario
+                {checkedCount > 0 && (
+                  <span className="ml-1 bg-amber-400 text-black text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                    {checkedCount}
+                  </span>
+                )}
               </TabsTrigger>
               <TabsTrigger value="educacion" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" /> Progress
+                <BarChart3 className="h-4 w-4" /> Progreso
               </TabsTrigger>
               <TabsTrigger value="ejercicios" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
-                <BookOpen className="h-4 w-4" /> Exercises
+                <BookOpen className="h-4 w-4" /> Ejercicios
               </TabsTrigger>
             </TabsList>
-            <button onClick={() => { resetFolderForm(); setShowFolderForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="New folder"><FolderPlus className="h-4 w-4" /></button>
-            <button onClick={() => { resetScaleForm(); setShowScaleForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="New scale"><Plus className="h-4 w-4" /></button>
+            <button onClick={() => { resetFolderForm(); setShowFolderForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="Nueva carpeta"><FolderPlus className="h-4 w-4" /></button>
+            <button onClick={() => { resetScaleForm(); setShowScaleForm(true); }} className="p-2 hover:bg-white/5 rounded-full text-muted-foreground" title="Nueva escala"><Plus className="h-4 w-4" /></button>
             <button onClick={saveSession} disabled={checkedCount === 0} className="premium-btn-glow px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              Save Session {checkedCount > 0 ? `(${checkedCount})` : ''}
+              Guardar Sesión {checkedCount > 0 ? `(${checkedCount})` : ''}
             </button>
           </div>
         </div>
@@ -481,13 +681,13 @@ export default function ScalesPage() {
 
           {/* Filters */}
           <div className="flex flex-wrap gap-2">
-            <Input placeholder="Search scale..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="w-40 flex-1 glass-panel border-white/5" />
+            <Input placeholder="Buscar escala..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="w-40 flex-1 glass-panel border-white/5" />
             <select value={filterNote} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterNote(e.target.value)} className="glass-panel text-secondary-foreground rounded-md px-3 py-1.5 text-sm border-white/5">
-              <option value="todos">All notes</option>
+              <option value="todos">Todas las notas</option>
               {NOTES.map((n: string) => <option key={n} value={n}>{NOTE_EN[n] ?? n}</option>)}
             </select>
             <select value={filterType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterType(e.target.value)} className="glass-panel text-secondary-foreground rounded-md px-3 py-1.5 text-sm border-white/5">
-              <option value="todos">All types</option>
+              <option value="todos">Todos los tipos</option>
               {SCALE_TYPE_OPTIONS.map((t: any) => <option key={t.value} value={t.value}>{t.labelEN ?? t.label}</option>)}
             </select>
           </div>
@@ -504,20 +704,144 @@ export default function ScalesPage() {
             </div>
           )}
 
-          {/* Progress + toggle all */}
-          <div className="stat-card border-white/5 bg-white/5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-muted-foreground">
-                Today: <span className="text-primary font-semibold">{checkedCount}</span> scale{checkedCount !== 1 ? 's' : ''} checked
-                {filtered.length !== PREDEFINED_SCALES.length && ` (of ${filtered.length} filtered)`}
-              </span>
+          {/* Daily Practice Command Center */}
+          <div className="stat-card border-primary/25 bg-gradient-to-r from-card/95 via-card/80 to-primary/10 p-4 sm:p-5 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-mono font-medium text-amber-300/90 uppercase tracking-wider">
+                    Práctica Diaria · {formatDate(today)}
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2 mt-0.5">
+                  <Sparkles className="h-4 w-4 text-amber-400" />
+                  Registro de Escalas de Hoy
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="font-mono text-2xl font-black text-amber-300 leading-none">
+                    {checkedCount}
+                    <span className="text-xs text-muted-foreground font-normal ml-1">/ {filtered.length}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {filtered.length > 0 ? Math.round((checkedCount / filtered.length) * 100) : 0}% completado hoy
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={saveSession}
+                  disabled={checkedCount === 0}
+                  className="premium-btn-glow bg-amber-500 hover:bg-amber-400 text-black font-semibold shadow-lg text-xs"
+                >
+                  Guardar Sesión {checkedCount > 0 ? `(${checkedCount})` : ''}
+                </Button>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="space-y-1 mb-4">
+              <Progress
+                value={filtered.length > 0 ? (checkedCount / filtered.length) * 100 : 0}
+                className="h-2.5 bg-white/10"
+              />
+            </div>
+
+            {/* Filter chips & toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5">
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-xs text-muted-foreground mr-1">Filtrar:</span>
+                <button
+                  onClick={() => setDailyFilter('todos')}
+                  className={`chip text-xs py-1 px-2.5 ${dailyFilter === 'todos' ? 'chip-active' : ''}`}
+                >
+                  Todas ({allScales.length})
+                </button>
+                <button
+                  onClick={() => setDailyFilter('hoy')}
+                  className={`chip text-xs py-1 px-2.5 flex items-center gap-1 ${
+                    dailyFilter === 'hoy' ? 'chip-active' : ''
+                  }`}
+                >
+                  <span className="text-amber-400">✨</span> Practicadas hoy ({checkedCount})
+                </button>
+                <button
+                  onClick={() => setDailyFilter('pendientes')}
+                  className={`chip text-xs py-1 px-2.5 ${dailyFilter === 'pendientes' ? 'chip-active' : ''}`}
+                >
+                  ⏳ Pendientes ({Math.max(0, allScales.length - checkedCount)})
+                </button>
+                <button
+                  onClick={() => setDailyFilter('frecuentes')}
+                  className={`chip text-xs py-1 px-2.5 flex items-center gap-1 ${
+                    dailyFilter === 'frecuentes' ? 'chip-active' : ''
+                  }`}
+                >
+                  <Flame className="h-3 w-3 text-orange-400" /> Más estudiadas
+                </button>
+              </div>
+
               {filtered.length > 0 && (
-                <button onClick={toggleAll} className="text-xs text-primary hover:underline">
-                  {allFilteredChecked ? 'Uncheck all' : 'Check all filtered'}
+                <button
+                  onClick={toggleAll}
+                  className="text-xs text-amber-300/80 hover:text-amber-300 hover:underline flex items-center gap-1 ml-auto"
+                >
+                  {allFilteredChecked ? (
+                    <>
+                      <RotateCcw className="h-3 w-3" /> Desmarcar todas
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-3 w-3" /> Marcar todas las filtradas
+                    </>
+                  )}
                 </button>
               )}
             </div>
-            <Progress value={filtered.length > 0 ? (checkedCount / filtered.length) * 100 : 0} className="h-2" />
+
+            {/* Today's Practiced Scales Strip */}
+            {todayPracticedScales.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-white/5 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-amber-300/80">
+                    Escalas registradas hoy ({todayPracticedScales.length}):
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar p-0.5">
+                  {todayPracticedScales.map((s: any) => {
+                    const sTheory = SCALE_THEORY[s.scaleType];
+                    const sUrls = s.video_url ? s.video_url.split('\n').filter(Boolean) : [];
+                    return (
+                      <div
+                        key={s.id}
+                        className="inline-flex items-center gap-1.5 bg-card/90 border border-amber-400/30 rounded-lg px-2 py-1 text-xs shadow-sm hover:border-amber-400/60 transition-colors"
+                      >
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: sTheory?.color || 'hsl(var(--primary))' }}
+                        />
+                        <span className="font-semibold text-foreground/90">{s.label}</span>
+                        {sUrls.length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPlayingScaleId(playingScaleId === s.id ? null : s.id);
+                            }}
+                            className="text-red-400 hover:text-red-300 p-0.5 ml-0.5"
+                            title="Ver video tutorial"
+                          >
+                            <Play className="h-2.5 w-2.5" fill="currentColor" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Scale grid grouped by folders */}
@@ -554,6 +878,180 @@ export default function ScalesPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Tab: Registro Diario Histórico */}
+        <TabsContent value="registro" className="space-y-6 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          {/* Summary KPI cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="stat-card text-center py-4">
+              <span className="text-2xl mb-1 block">📅</span>
+              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{logsByDate.length}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Días con práctica</p>
+            </div>
+            <div className="stat-card text-center py-4">
+              <span className="text-2xl mb-1 block">✨</span>
+              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{checkedCount}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Estudiadas hoy</p>
+            </div>
+            <div className="stat-card text-center py-4">
+              <span className="text-2xl mb-1 block">🎼</span>
+              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{totalPracticed}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Escalas practicadas</p>
+            </div>
+            <div className="stat-card text-center py-4">
+              <span className="text-2xl mb-1 block">⚡</span>
+              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{(scaleLogs || []).length}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Registros totales</p>
+            </div>
+          </div>
+
+          {/* History timeline list */}
+          {logsByDate.length === 0 ? (
+            <div className="stat-card py-16 text-center border-dashed border-white/10 opacity-70">
+              <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+              <h3 className="text-base font-semibold text-foreground">Aún no hay registros de escalas</h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                Marca las escalas en la pestaña "Práctica" conforme las vayas estudiando cada día para construir tu historial diario.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="section-title text-base flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  Historial Cronológico de Escalas Estudiadas
+                </h3>
+                <span className="text-xs text-muted-foreground font-mono">
+                  {logsByDate.length} {logsByDate.length === 1 ? 'día registrado' : 'días registrados'}
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {logsByDate.map(({ date, logs, count, isToday }) => {
+                  return (
+                    <div
+                      key={date}
+                      className={`stat-card p-4 transition-all duration-300 ${
+                        isToday
+                          ? 'border-amber-400/40 bg-gradient-to-r from-card via-card to-amber-500/10 shadow-lg ring-1 ring-amber-400/30'
+                          : 'border-white/5 bg-white/5'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                        <div className="flex items-center gap-2">
+                          <Calendar className={`h-4 w-4 ${isToday ? 'text-amber-400' : 'text-muted-foreground'}`} />
+                          <span className={`text-sm font-bold ${isToday ? 'text-amber-300' : 'text-foreground'}`}>
+                            {isToday ? `Hoy · ${formatDate(date)}` : formatDate(date)}
+                          </span>
+                          {isToday && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              Sesión activa
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white/10 text-foreground/80">
+                            {count} {count === 1 ? 'escala estudiada' : 'escalas estudiadas'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Grid of scales practiced that day */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3">
+                        {logs.map((item: any, idx: number) => {
+                          const theory = item.theory;
+                          const instDef = instruments.find((i: InstrumentDef) => i.id === item.instrument);
+                          const urls = item.video_url ? item.video_url.split('\n').filter(Boolean) : [];
+                          const hasVid = urls.length > 0;
+                          const isItemPlaying = playingScaleId === `${date}-${item.scale_id}`;
+
+                          return (
+                            <div
+                              key={item.id || idx}
+                              className="p-3 rounded-lg border border-white/10 bg-black/30 hover:border-white/20 transition-all flex flex-col justify-between gap-2"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-foreground/95 truncate">
+                                    {item.label}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {theory && (
+                                      <span
+                                        className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                                        style={{ background: theory.color + '22', color: theory.color }}
+                                      >
+                                        {theory.label}
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
+                                      {instDef?.emoji || '🎼'} {instDef?.name || item.instrument}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {hasVid && (
+                                    <button
+                                      onClick={() => {
+                                        setPlayingScaleId(isItemPlaying ? null : `${date}-${item.scale_id}`);
+                                      }}
+                                      className={`p-1 rounded transition-colors ${
+                                        isItemPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
+                                      }`}
+                                      title={isItemPlaying ? 'Ocultar video' : 'Ver video tutorial'}
+                                    >
+                                      <Play className="h-3.5 w-3.5" fill="currentColor" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => deleteLog(item.id, item.scale_id, item.date, item.instrument)}
+                                    className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    title="Eliminar este registro"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Inline video player for the log */}
+                              {isItemPlaying && hasVid && (
+                                <div className="mt-2 rounded overflow-hidden border border-white/10 animate-in fade-in duration-200">
+                                  {urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ? (
+                                    <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                                      <iframe
+                                        src={`https://www.youtube.com/embed/${
+                                          urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1]
+                                        }?autoplay=1`}
+                                        className="absolute inset-0 w-full h-full border-none"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                      />
+                                    </div>
+                                  ) : (
+                                    <a
+                                      href={urls[0]}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="block p-2 text-xs text-primary bg-secondary/30 text-center"
+                                    >
+                                      Abrir enlace de video ↗
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </TabsContent>

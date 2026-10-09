@@ -9,13 +9,13 @@ export interface InstrumentDef {
 export const DEFAULT_INSTRUMENTS: InstrumentDef[] = [
   { id: 'piano', name: 'Piano', emoji: '🎹' },
   { id: 'guitarra', name: 'Guitarra', emoji: '🎸' },
-  { id: 'ukelele', name: 'Ukelele', emoji: '🪗' },
+  { id: 'ukelele', name: 'Ukelele', emoji: '🪕' },
 ];
 
 export const INSTRUMENT_LABELS: Record<string, string> = {
   piano: '🎹 Piano',
   guitarra: '🎸 Guitarra',
-  ukelele: '🪗 Ukelele',
+  ukelele: '🪕 Ukelele',
 };
 
 export type PracticeCategory =
@@ -169,9 +169,11 @@ export interface WeeklySetlist {
 }
 
 export interface ScalePracticeLog {
+  id?: string;
   scale_id: string;
   date: string;
   instrument: Instrument;
+  created_at?: string;
 }
 
 export interface HarmonyPracticeLog {
