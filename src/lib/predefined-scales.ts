@@ -23,18 +23,11 @@ export interface PredefinedScale {
 }
 
 const SCALE_TYPES_DEF = [
-  { key: 'mayor',             label: 'Mayor',             labelEN: 'Major' },
-  { key: 'menor_natural',     label: 'Menor Natural',     labelEN: 'Natural Minor' },
-  { key: 'menor_armonica',    label: 'Menor Armónica',    labelEN: 'Harmonic Minor' },
-  { key: 'menor_melodica',    label: 'Menor Melódica',    labelEN: 'Melodic Minor' },
-  { key: 'pentatonica_mayor', label: 'Pentatónica Mayor', labelEN: 'Major Pentatonic' },
-  { key: 'pentatonica_menor', label: 'Pentatónica Menor', labelEN: 'Minor Pentatonic' },
-  { key: 'blues',             label: 'Blues',             labelEN: 'Blues' },
-  { key: 'dorica',            label: 'Dórica',            labelEN: 'Dorian' },
-  { key: 'frigia',            label: 'Frigia',            labelEN: 'Phrygian' },
-  { key: 'lidia',             label: 'Lidia',             labelEN: 'Lydian' },
-  { key: 'mixolidia',         label: 'Mixolidia',         labelEN: 'Mixolydian' },
-  { key: 'locria',            label: 'Locria',            labelEN: 'Locrian' },
+  { key: 'mayor',             label: 'Mayor',                 labelEN: 'Major' },
+  { key: 'menor_natural',     label: 'Menor Natural',         labelEN: 'Natural Minor' },
+  { key: 'pentatonica_mayor', label: 'Pentatónica Mayor',     labelEN: 'Major Pentatonic' },
+  { key: 'pentatonica_menor', label: 'Pentatónica Menor',     labelEN: 'Minor Pentatonic' },
+  { key: 'blues',             label: 'Pentatónica con Blues', labelEN: 'Blues' },
 ] as const;
 
 export const SCALE_TYPE_OPTIONS = SCALE_TYPES_DEF.map(t => ({ value: t.key, label: t.label, labelEN: t.labelEN }));
@@ -96,7 +89,7 @@ export const SCALE_THEORY: Record<string, {
     steps: ['A','T','S','S','A','T'], semitones: [3,2,1,1,3,2],
     degrees: ['1','♭3','4','♭5','5','♭7'],
     description: 'Pentatónica menor + nota blue (♭5). Tensión cruda y expresiva. Esencial para blues.',
-    color: '#34d399', label: 'Blues',
+    color: '#34d399', label: 'Pentatónica con Blues',
   },
   dorica: {
     steps: ['T','S','T','T','T','S','T'], semitones: [2,1,2,2,2,1,2],
@@ -143,7 +136,7 @@ export function getScaleNotes(rootEN: string, scaleType: string): string[] {
   return notes;
 }
 
-/** Heatmap: 8 representative types shown in columns */
+/** Heatmap: the 5 representative types shown in columns */
 export const HEATMAP_TYPES = [
-  'mayor','menor_natural','menor_armonica','pentatonica_menor','blues','dorica','mixolidia','frigia',
+  'mayor', 'menor_natural', 'pentatonica_mayor', 'pentatonica_menor', 'blues',
 ] as const;
