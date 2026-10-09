@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
-import { useSessions } from '@/hooks/use-music-data';
+import { useState, useMemo, useEffect } from 'react';
+import { useSessions, useScaleLogs, useScales } from '@/hooks/use-music-data';
 import { formatDate, formatDurationLong, formatDuration, getMonday } from '@/lib/music-utils';
 import { CATEGORY_LABELS, ALL_CATEGORIES, type PracticeCategory, type Instrument } from '@/types/music';
+import { PREDEFINED_SCALES } from '@/lib/predefined-scales';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,8 @@ type ViewMode = 'list' | 'calendar' | 'stats';
 
 export default function HistoryPage() {
   const [sessions = [], setSessions, isLoading] = useSessions();
+  const [scaleLogs = []] = useScaleLogs();
+  const [customScales = []] = useScales();
   const [filterInstrument, setFilterInstrument] = useState<Instrument | 'todos'>('todos');
   const [filterCategory, setFilterCategory] = useState<PracticeCategory | 'todas'>('todas');
   const [editId, setEditId] = useState<string | null>(null);
@@ -30,6 +33,52 @@ export default function HistoryPage() {
   // ─── Weekly stats navigation ───
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, -1 = last week, etc.
   const { instruments } = useInstruments();
+
+  // Limpieza y fusión automática de sesiones duplicadas de escalas
+  useEffect(() => {
+    if (!sessions || sessions.length === 0) return;
+    const toDelete: string[] = [];
+    const updates: Record<string, any> = {};
+
+    // Agrupar por fecha
+    const byDate: Record<string, any[]> = {};
+    sessions.forEach((s: any) => {
+      const key = s.date;
+      if (!byDate[key]) byDate[key] = [];
+      byDate[key].push(s);
+    });
+
+    Object.values(byDate).forEach((group) => {
+      if (group.length > 1) {
+        // Encontrar sesión duplicada generada exclusivamente por escalas
+        const scaleOnly = group.find((s: any) =>
+          ((s.notes && s.notes.includes('Escalas (')) ||
+           s.goal === 'Práctica diaria de escalas' ||
+           (s.categories?.length === 1 && s.categories[0] === 'escalas')) &&
+          (s.durationMinutes === 15 || s.durationMinutes === 0 || s.durationMinutes <= 20)
+        );
+        // La sesión real principal (ej. la de 26 min del cronómetro)
+        const realSession = group.find((s: any) => s.id !== scaleOnly?.id && s.durationMinutes > 0);
+
+        if (scaleOnly && realSession) {
+          toDelete.push(scaleOnly.id);
+          const newCats = Array.from(new Set([...(realSession.categories || []), 'escalas' as PracticeCategory]));
+          const newNotes = realSession.notes
+            ? (realSession.notes.includes('Escalas (') ? realSession.notes : `${realSession.notes}\n${scaleOnly.notes || ''}`.trim())
+            : (scaleOnly.notes || '');
+          updates[realSession.id] = { ...realSession, categories: newCats, notes: newNotes };
+        }
+      }
+    });
+
+    if (toDelete.length > 0) {
+      setSessions((prev: any[]) =>
+        prev
+          .filter((s: any) => !toDelete.includes(s.id))
+          .map((s: any) => updates[s.id] || s)
+      );
+    }
+  }, [sessions, setSessions]);
 
   const filtered = (sessions || [])
     .filter((s: any) => filterInstrument === 'todos' || s.instrument === filterInstrument)
@@ -383,33 +432,68 @@ export default function HistoryPage() {
             </div>
           ) : (
             <div className="space-y-2.5">
-              {filtered.map((s: any) => (
-                <AppTooltip key={s.id} content="Haz clic para editar los detalles de esta sesión.">
-                  <div onClick={() => openEdit(s.id)}
-                    className="stat-card flex items-center justify-between cursor-pointer hover:border-primary/40 group p-3.5 sm:p-4">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="text-2xl shrink-0 p-2 rounded-xl bg-white/5 border border-white/5 group-hover:scale-105 transition-transform">
-                        {instruments.find((i: InstrumentDef) => i.id === s.instrument)?.emoji || '🎼'}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm text-foreground">{formatDate(s.date)}</p>
-                        <p className="text-xs font-medium text-foreground/80 truncate mt-0.5">
-                          {s.categories.map((c: string) => CATEGORY_LABELS[c as PracticeCategory]).join(', ')}
-                        </p>
-                        {s.notes && (
-                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{s.notes}</p>
-                        )}
+              {filtered.map((s: any) => {
+                const sessionScaleLogs = (scaleLogs || []).filter(
+                  (l: any) => l.date === s.date && (l.instrument === s.instrument || !s.instrument)
+                );
+
+                // Evitar texto duplicado de notas si ya mostramos las escalas como chips
+                const displayNotes = s.notes
+                  ? s.notes.split('\n').filter((line: string) => !line.trim().startsWith('Escalas (')).join('\n').trim()
+                  : '';
+
+                return (
+                  <AppTooltip key={s.id} content="Haz clic para editar los detalles de esta sesión.">
+                    <div onClick={() => openEdit(s.id)}
+                      className="stat-card flex flex-col justify-between cursor-pointer hover:border-primary/40 group p-3.5 sm:p-4 transition-all">
+                      <div className="flex items-start justify-between gap-3 w-full">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <span className="text-2xl shrink-0 p-2 rounded-xl bg-white/5 border border-white/5 group-hover:scale-105 transition-transform">
+                            {instruments.find((i: InstrumentDef) => i.id === s.instrument)?.emoji || '🎼'}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-foreground">{formatDate(s.date)}</p>
+                            <p className="text-xs font-medium text-foreground/80 truncate mt-0.5">
+                              {s.categories.map((c: string) => CATEGORY_LABELS[c as PracticeCategory] || c).join(', ')}
+                            </p>
+                            {displayNotes && (
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{displayNotes}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 ml-3">
+                          <p className="font-mono text-sm sm:text-base font-bold text-amber-300">{formatDurationLong(s.durationMinutes)}</p>
+                          <p className="text-xs text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)] mt-0.5">
+                            {'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Escalas practicadas en este día */}
+                      {sessionScaleLogs.length > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-white/5 flex flex-wrap items-center gap-1.5 w-full">
+                          <span className="text-[10px] uppercase font-bold text-amber-300/80 tracking-wider flex items-center gap-1">
+                            🎼 Escalas ({sessionScaleLogs.length}):
+                          </span>
+                          {sessionScaleLogs.map((l: any, idx: number) => {
+                            const scaleObj = PREDEFINED_SCALES.find((sc: any) => sc.id === l.scale_id) || (customScales || []).find((sc: any) => sc.id === l.scale_id);
+                            const name = scaleObj?.label || (scaleObj as any)?.name || l.scale_id;
+                            return (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-amber-400/10 text-amber-300 border border-amber-400/20 shadow-sm"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                {name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <p className="font-mono text-sm sm:text-base font-bold text-amber-300">{formatDurationLong(s.durationMinutes)}</p>
-                      <p className="text-xs text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)] mt-0.5">
-                        {'★'.repeat(s.rating)}{'☆'.repeat(5 - s.rating)}
-                      </p>
-                    </div>
-                  </div>
-                </AppTooltip>
-              ))}
+                  </AppTooltip>
+                );
+              })}
             </div>
           )}
         </div>
