@@ -9,6 +9,7 @@ import {
   getScaleNotes,
   PredefinedScale,
 } from '@/lib/predefined-scales';
+import { getTodayEC, formatDate } from '@/lib/music-utils';
 import {
   Sparkles,
   Music2,
@@ -30,6 +31,7 @@ import {
   Calendar,
   Eye,
   AlertCircle,
+  Clock,
 } from 'lucide-react';
 import {
   Dialog,
@@ -79,20 +81,81 @@ export function ScalesEducation({
 }: Props) {
   const [activeTab, setActiveTab] = useState<'progreso' | 'teoria'>('progreso');
   const [matrixFilter, setMatrixFilter] = useState<'all' | 'pending' | 'today'>('all');
+  const [progressPeriod, setProgressPeriod] = useState<'todo' | 'mes' | 'semana' | 'hoy'>('todo');
   const [selectedScaleForModal, setSelectedScaleForModal] = useState<PredefinedScale | null>(null);
 
   // Theory explorer state
   const [theoryType, setTheoryType] = useState('mayor');
   const [theoryRoot, setTheoryRoot] = useState('C');
 
-  // ── Calculation of Stats ──────────────────────────────────────────────
+  const effectiveToday = today || getTodayEC();
+
+  // Period ranges calculation
+  const { weekStartStr, weekEndStr, weekLabel, monthKey, monthLabel } = useMemo(() => {
+    const todayDate = new Date(effectiveToday + 'T12:00:00');
+    const dayOfWeek = todayDate.getDay();
+    const diffToMon = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+    const mondayDate = new Date(todayDate);
+    mondayDate.setDate(todayDate.getDate() + diffToMon);
+    const sundayDate = new Date(mondayDate);
+    sundayDate.setDate(mondayDate.getDate() + 6);
+
+    const weekStartStr = mondayDate.toISOString().slice(0, 10);
+    const weekEndStr = sundayDate.toISOString().slice(0, 10);
+
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const monthFull = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    const startDay = mondayDate.getDate();
+    const endDay = sundayDate.getDate();
+    const startMonth = months[mondayDate.getMonth()];
+    const endMonth = months[sundayDate.getMonth()];
+    const year = sundayDate.getFullYear();
+    const weekLabel = startMonth === endMonth
+      ? `${startDay} - ${endDay} ${endMonth} ${year}`
+      : `${startDay} ${startMonth} - ${endDay} ${endMonth} ${year}`;
+
+    const monthKey = effectiveToday.slice(0, 7);
+    const [y, m] = monthKey.split('-');
+    const monthLabel = `${monthFull[parseInt(m, 10) - 1] || m} ${y}`;
+
+    return { weekStartStr, weekEndStr, weekLabel, monthKey, monthLabel };
+  }, [effectiveToday]);
+
+  // Logs filtered by selected period
+  const periodLogs = useMemo(() => {
+    if (progressPeriod === 'hoy') {
+      return (scaleLogs || []).filter((l: any) => l.date === effectiveToday);
+    }
+    if (progressPeriod === 'semana') {
+      return (scaleLogs || []).filter((l: any) => l.date >= weekStartStr && l.date <= weekEndStr);
+    }
+    if (progressPeriod === 'mes') {
+      return (scaleLogs || []).filter((l: any) => l.date && l.date.startsWith(monthKey));
+    }
+    return scaleLogs || [];
+  }, [scaleLogs, progressPeriod, effectiveToday, weekStartStr, weekEndStr, monthKey]);
+
+  // Active counts for the selected period
+  const activePracticeCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    periodLogs.forEach((l: any) => {
+      counts[l.scale_id] = (counts[l.scale_id] || 0) + 1;
+    });
+    return counts;
+  }, [periodLogs]);
+
+  // ── Calculation of Stats for the selected period ─────────────────────────
   const {
     totalScalesCount,
     practicedScalesCount,
     masteredScalesCount,
     inProgressScalesCount,
     unpracticedScalesCount,
-    todayPracticedCount,
+    totalRepsInPeriod,
+    activeDaysInPeriod,
     coveragePct,
     byTypeStats,
     byNoteStats,
@@ -103,6 +166,8 @@ export function ScalesEducation({
     let practicedScalesCount = 0;
     let masteredScalesCount = 0;
     let inProgressScalesCount = 0;
+    let totalRepsInPeriod = 0;
+    const activeDates = new Set<string>();
 
     const byType: Record<string, { count: number; totalReps: number; practicedCount: number }> = {};
     TYPE_COLUMN_DEFS.forEach(t => {
@@ -114,10 +179,13 @@ export function ScalesEducation({
       byNote[n] = { note: NOTES[idx], noteEN: n, practicedCount: 0, totalReps: 0 };
     });
 
+    // Check unique scales and reps for this period
     PREDEFINED_SCALES.forEach(scale => {
-      const reps = practiceCount[scale.id] ?? 0;
+      const reps = activePracticeCount[scale.id] ?? 0;
       if (reps > 0) {
         practicedScalesCount++;
+        totalRepsInPeriod += reps;
+
         if (reps >= 3) masteredScalesCount++;
         else inProgressScalesCount++;
 
@@ -134,12 +202,15 @@ export function ScalesEducation({
       }
     });
 
+    periodLogs.forEach((l: any) => {
+      if (l.date) activeDates.add(l.date);
+    });
+
     const unpracticedScalesCount = totalScalesCount - practicedScalesCount;
     const coveragePct = Math.round((practicedScalesCount / (totalScalesCount || 1)) * 100);
-    const todayPracticedCount = todayChecked.size;
 
-    // Top 5 practiced
-    const topPracticed = Object.entries(practiceCount)
+    // Top practiced in this period (or fallback to general top)
+    const topPracticed = Object.entries(activePracticeCount)
       .filter(([_, reps]) => reps > 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
@@ -157,7 +228,6 @@ export function ScalesEducation({
     const recs: PredefinedScale[] = [];
     for (const note of candidateNotes) {
       if (recs.length >= 3) break;
-      // prioritize Mayor, then Pentatónica Mayor, then Menor
       const preferredTypes = ['mayor', 'pentatonica_mayor', 'menor_natural', 'pentatonica_menor', 'blues'];
       for (const t of preferredTypes) {
         const sc = PREDEFINED_SCALES.find(s => s.note === note && s.scaleType === t);
@@ -174,19 +244,15 @@ export function ScalesEducation({
       masteredScalesCount,
       inProgressScalesCount,
       unpracticedScalesCount,
-      todayPracticedCount,
+      totalRepsInPeriod,
+      activeDaysInPeriod: activeDates.size,
       coveragePct,
       byTypeStats: byType,
       byNoteStats: byNote,
       topPracticed,
       recommendations: recs,
     };
-  }, [practiceCount, allScales, todayChecked]);
-
-  // Max reps for heatmap intensity
-  const maxReps = useMemo(() => {
-    return Math.max(1, ...Object.values(practiceCount));
-  }, [practiceCount]);
+  }, [activePracticeCount, periodLogs, allScales, practiceCount]);
 
   // Selected scale details for modal
   const selectedScaleNotes = useMemo(() => {
@@ -214,17 +280,14 @@ export function ScalesEducation({
   const visibleNotesIndices = useMemo(() => {
     return NOTES_EN.map((_, idx) => idx).filter(idx => {
       const noteEsp = NOTES[idx];
-      const noteEN = NOTES_EN[idx];
       if (matrixFilter === 'all') return true;
       if (matrixFilter === 'pending') {
-        // Show row if it has at least one scale not practiced
         return TYPE_COLUMN_DEFS.some(type => {
           const sc = PREDEFINED_SCALES.find(s => s.note === noteEsp && s.scaleType === type.key);
-          return sc ? !(practiceCount[sc.id] > 0) : true;
+          return sc ? !(activePracticeCount[sc.id] > 0) : true;
         });
       }
       if (matrixFilter === 'today') {
-        // Show row if it has at least one scale practiced today
         return TYPE_COLUMN_DEFS.some(type => {
           const sc = PREDEFINED_SCALES.find(s => s.note === noteEsp && s.scaleType === type.key);
           return sc ? todayChecked.has(sc.id) : false;
@@ -232,7 +295,7 @@ export function ScalesEducation({
       }
       return true;
     });
-  }, [matrixFilter, practiceCount, todayChecked]);
+  }, [matrixFilter, activePracticeCount, todayChecked]);
 
   // ── Theory Explorer Calculations ───────────────────────────────────────
   const theory = SCALE_THEORY[theoryType];
@@ -241,8 +304,9 @@ export function ScalesEducation({
 
   return (
     <div className="space-y-6">
-      {/* Sub-tabs header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Sub-tabs header & Period Switcher */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Navigation Tabs */}
         <div className="flex gap-1.5 p-1 bg-secondary/40 border border-white/5 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab('progreso')}
@@ -268,12 +332,57 @@ export function ScalesEducation({
           </button>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground bg-white/5 px-3 py-1.5 rounded-lg border border-white/5">
-          <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-          <span>
-            Cobertura total: <strong className="text-foreground">{coveragePct}%</strong> ({practicedScalesCount}/{totalScalesCount})
-          </span>
-        </div>
+        {/* Temporal Scope Selector (Diario, Semanal, Mensual, Total) */}
+        {activeTab === 'progreso' && (
+          <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-white/10 rounded-xl self-start lg:self-auto shadow-sm">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground px-2 hidden sm:inline">
+              Periodo:
+            </span>
+            <button
+              onClick={() => setProgressPeriod('hoy')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                progressPeriod === 'hoy'
+                  ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Diario (Hoy)
+            </button>
+            <button
+              onClick={() => setProgressPeriod('semana')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                progressPeriod === 'semana'
+                  ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Semanal
+            </button>
+            <button
+              onClick={() => setProgressPeriod('mes')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                progressPeriod === 'mes'
+                  ? 'bg-amber-500 text-black shadow-sm shadow-amber-500/25 font-bold'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Mensual
+            </button>
+            <button
+              onClick={() => setProgressPeriod('todo')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                progressPeriod === 'todo'
+                  ? 'bg-white/15 text-foreground shadow-sm font-bold border border-white/10'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+              }`}
+            >
+              🌟 Total Histórico
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -281,19 +390,48 @@ export function ScalesEducation({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'progreso' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          {/* Top KPI Cards */}
+          {/* Period Banner Indicator */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span>
+                Visualizando progreso:{' '}
+                <strong className="text-foreground">
+                  {progressPeriod === 'hoy'
+                    ? `Hoy · ${formatDate(effectiveToday)}`
+                    : progressPeriod === 'semana'
+                    ? `Semana actual · ${weekLabel}`
+                    : progressPeriod === 'mes'
+                    ? `Mes actual · ${monthLabel}`
+                    : 'Todo el Histórico Acumulado'}
+                </strong>
+              </span>
+            </div>
+            <span className="font-mono text-[11px] text-foreground/80">
+              {practicedScalesCount} escalas · {totalRepsInPeriod} repasos registrados
+            </span>
+          </div>
+
+          {/* Top KPI Cards (Adapts to period) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {/* Dominio Total */}
+            {/* Escalas Practicadas en el Período */}
             <div className="stat-card p-4 relative overflow-hidden group border-primary/20 bg-gradient-to-br from-primary/10 via-transparent to-transparent">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-primary">Cobertura Total</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                  {progressPeriod === 'hoy'
+                    ? 'Estudiadas Hoy'
+                    : progressPeriod === 'semana'
+                    ? 'Escalas Esta Semana'
+                    : progressPeriod === 'mes'
+                    ? 'Escalas Este Mes'
+                    : 'Cobertura Histórica'}
+                </span>
                 <span className="text-xs font-mono font-bold text-primary">{coveragePct}%</span>
               </div>
               <p className="font-mono text-2xl sm:text-3xl font-black text-foreground mt-1">
                 {practicedScalesCount}
                 <span className="text-xs sm:text-sm font-normal text-muted-foreground ml-1">/ {totalScalesCount}</span>
               </p>
-              {/* Progress bar */}
               <div className="w-full bg-secondary/60 h-1.5 rounded-full overflow-hidden mt-3">
                 <div
                   className="h-full bg-gradient-to-r from-amber-400 to-primary rounded-full transition-all duration-500"
@@ -302,23 +440,25 @@ export function ScalesEducation({
               </div>
             </div>
 
-            {/* Dominadas (>= 3 veces) */}
+            {/* Repeticiones Totales en el Período */}
             <div className="stat-card p-4">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Flame className="h-3.5 w-3.5 text-amber-400" /> Dominadas
+                  <Flame className="h-3.5 w-3.5 text-amber-400" /> Repasos Totales
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/20">≥3 reps</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/20">
+                  {progressPeriod === 'hoy' ? 'Hoy' : progressPeriod === 'semana' ? 'Semana' : progressPeriod === 'mes' ? 'Mes' : 'Total'}
+                </span>
               </div>
               <p className="font-mono text-2xl sm:text-3xl font-black text-amber-300 mt-1">
-                {masteredScalesCount}
+                {totalRepsInPeriod}
               </p>
               <p className="text-[11px] text-muted-foreground mt-1">
-                {inProgressScalesCount} en desarrollo (1-2)
+                {activeDaysInPeriod} {activeDaysInPeriod === 1 ? 'día con actividad' : 'días con actividad'}
               </p>
             </div>
 
-            {/* Pendientes por Aprender */}
+            {/* Dominadas en el Período */}
             <div
               onClick={() => setMatrixFilter(matrixFilter === 'pending' ? 'all' : 'pending')}
               className={`stat-card p-4 cursor-pointer transition-all hover:border-white/20 ${
@@ -339,7 +479,7 @@ export function ScalesEducation({
               </p>
             </div>
 
-            {/* Repasadas Hoy */}
+            {/* Sesión de Hoy / Activo */}
             <div
               onClick={() => setMatrixFilter(matrixFilter === 'today' ? 'all' : 'today')}
               className={`stat-card p-4 cursor-pointer transition-all hover:border-emerald-500/30 ${
@@ -353,10 +493,10 @@ export function ScalesEducation({
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-400/10 text-emerald-400 font-bold">Activo</span>
               </div>
               <p className="font-mono text-2xl sm:text-3xl font-black text-emerald-400 mt-1">
-                {todayPracticedCount}
+                {todayChecked.size}
               </p>
               <p className="text-[11px] text-muted-foreground mt-1">
-                {todayPracticedCount > 0 ? 'Marcadas en tu sesión' : 'Aún sin repasar hoy'}
+                {todayChecked.size > 0 ? 'Marcadas en tu sesión' : 'Aún sin repasar hoy'}
               </p>
             </div>
           </div>
@@ -382,7 +522,6 @@ export function ScalesEducation({
                 {recommendations.map(scale => {
                   const typeDef = TYPE_COLUMN_DEFS.find(t => t.key === scale.scaleType);
                   const isCheckedToday = todayChecked.has(scale.id);
-                  const hasVideo = Boolean(scaleVideos[scale.id]);
 
                   return (
                     <div
@@ -448,7 +587,13 @@ export function ScalesEducation({
                   <Layers className="h-4 w-4 text-primary" /> Mapa de Dominio · 12 Tonalidades × 5 Tipos
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Haz clic en cualquier celda para ver sus notas, reproducir su tutorial o marcarla como repasada hoy.
+                  {progressPeriod === 'hoy'
+                    ? 'Mostrando actividad registrada exclusivamente hoy.'
+                    : progressPeriod === 'semana'
+                    ? `Mostrando actividad registrada durante esta semana (${weekLabel}).`
+                    : progressPeriod === 'mes'
+                    ? `Mostrando actividad registrada durante este mes (${monthLabel}).`
+                    : 'Mostrando todo el historial acumulado. Haz clic en cualquier casilla para ver notas o practicar.'}
                 </p>
               </div>
 
@@ -567,7 +712,8 @@ export function ScalesEducation({
                             s => s.note === noteEsp && s.scaleType === col.key
                           );
                           const scaleId = scale?.id || `${noteEsp}-${col.key}`;
-                          const reps = practiceCount[scaleId] ?? 0;
+                          const reps = activePracticeCount[scaleId] ?? 0;
+                          const totalRepsAllTime = practiceCount[scaleId] ?? 0;
                           const isCheckedToday = todayChecked.has(scaleId);
                           const hasVideo = Boolean(scaleVideos[scaleId]);
 
@@ -576,22 +722,18 @@ export function ScalesEducation({
                           let badge = null;
 
                           if (reps >= 5) {
-                            // Dominada
                             cellBg =
                               'bg-gradient-to-r from-amber-500/30 to-amber-400/20 border-amber-400/50 text-amber-200 shadow-sm shadow-amber-500/10 hover:border-amber-300';
                             badge = <span className="font-mono font-black text-xs">{reps}×</span>;
                           } else if (reps >= 2) {
-                            // En desarrollo
                             cellBg =
                               'bg-amber-400/15 border-amber-400/30 text-amber-300 hover:border-amber-400/60';
                             badge = <span className="font-mono font-bold text-xs">{reps}×</span>;
                           } else if (reps === 1) {
-                            // Iniciada
                             cellBg =
                               'bg-amber-400/10 border-amber-400/20 text-amber-400/90 hover:border-amber-400/40';
                             badge = <span className="font-mono text-xs">1×</span>;
                           } else {
-                            // 0 reps
                             badge = <span className="text-muted-foreground/30 text-xs">·</span>;
                           }
 
@@ -605,17 +747,17 @@ export function ScalesEducation({
                                     : ''
                                 }`}
                                 title={`${scale?.label || col.short}: ${
-                                  reps > 0 ? `${reps} prácticas` : 'Sin practicar'
-                                }${isCheckedToday ? ' · Practicada hoy' : ''}`}
+                                  reps > 0 ? `${reps} prácticas en este período` : 'Sin practicar en este período'
+                                }${totalRepsAllTime > 0 ? ` (${totalRepsAllTime} total histórico)` : ''}${
+                                  isCheckedToday ? ' · Practicada hoy ✨' : ''
+                                }`}
                               >
                                 {badge}
 
-                                {/* Sparkle icon for practiced today */}
                                 {isCheckedToday && (
                                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-background animate-pulse" />
                                 )}
 
-                                {/* Video indicator dot */}
                                 {hasVideo && !isCheckedToday && (
                                   <span className="absolute bottom-1 right-1 w-1 h-1 bg-red-400/80 rounded-full" />
                                 )}
@@ -674,12 +816,12 @@ export function ScalesEducation({
             </div>
           </div>
 
-          {/* ════ BREAKDOWN BY TYPE & BY KEY ════ */}
+          {/* ════ BREAKDOWN BY TYPE & TOP PRACTICED ════ */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Por tipo de escala */}
             <div className="stat-card p-4 sm:p-5">
               <h4 className="section-title text-sm mb-3 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" /> Progreso por Tipo de Escala
+                <TrendingUp className="h-4 w-4 text-primary" /> Progreso por Tipo de Escala ({progressPeriod === 'todo' ? 'Total' : progressPeriod === 'mes' ? 'Este Mes' : progressPeriod === 'semana' ? 'Esta Semana' : 'Hoy'})
               </h4>
               <div className="space-y-3">
                 {TYPE_COLUMN_DEFS.map(col => {
@@ -714,10 +856,10 @@ export function ScalesEducation({
               </div>
             </div>
 
-            {/* Top 5 Más Repasadas */}
+            {/* Top Escalas Más Repasadas en el Período */}
             <div className="stat-card p-4 sm:p-5">
               <h4 className="section-title text-sm mb-3 flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-amber-400" /> Top Escalas Más Repasadas
+                <Trophy className="h-4 w-4 text-amber-400" /> Top Escalas ({progressPeriod === 'todo' ? 'Histórico' : progressPeriod === 'mes' ? 'Este Mes' : progressPeriod === 'semana' ? 'Esta Semana' : 'Hoy'})
               </h4>
 
               {topPracticed.length > 0 ? (
@@ -762,7 +904,7 @@ export function ScalesEducation({
                 </div>
               ) : (
                 <div className="text-center py-8 text-xs text-muted-foreground">
-                  Aún no has registrado prácticas de escalas. ¡Marca tus escalas hoy para ver tu ranking aquí!
+                  No se registraron prácticas en este período seleccionado.
                 </div>
               )}
             </div>
@@ -775,7 +917,6 @@ export function ScalesEducation({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === 'teoria' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* Header & Selectors Panel */}
           <div className="glass-panel border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-transparent p-6 rounded-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-5 rotate-12 pointer-events-none">
               <Music2 className="h-40 w-40" />
@@ -861,9 +1002,7 @@ export function ScalesEducation({
 
           {theory && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Main Visualization (Degrees & Notes) */}
               <div className="lg:col-span-8 space-y-6">
-                {/* Visual Scale Display */}
                 <div className="stat-card p-8 bg-gradient-to-b from-secondary/20 to-transparent relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
                   <div className="flex items-center justify-between mb-8">
@@ -879,7 +1018,6 @@ export function ScalesEducation({
                   </div>
 
                   <div className="flex justify-between items-end gap-2 px-2 relative">
-                    {/* Horizontal Line Connector */}
                     <div className="absolute bottom-[2.25rem] left-0 w-full h-[2px] bg-gradient-to-r from-primary/40 via-primary/20 to-primary/40 -z-0" />
 
                     {scaleNotesTheory.map((note, i) => (
@@ -887,7 +1025,6 @@ export function ScalesEducation({
                         key={i}
                         className="relative z-10 flex flex-col items-center gap-4 flex-1 max-w-[80px]"
                       >
-                        {/* Degree */}
                         <div
                           className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg transition-all duration-300 shadow-lg group-hover:-translate-y-1 ${
                             i === 0
@@ -898,7 +1035,6 @@ export function ScalesEducation({
                           {theory.degrees[i] ?? '8'}
                         </div>
 
-                        {/* Note Circle */}
                         <div
                           className={`h-10 min-w-[2.5rem] px-2 rounded-xl border-2 flex items-center justify-center font-mono text-sm font-bold bg-black shadow-xl ${
                             i === 0
@@ -914,7 +1050,6 @@ export function ScalesEducation({
                   </div>
                 </div>
 
-                {/* Interval Pattern Details */}
                 <div className="stat-card p-6">
                   <h4 className="text-[10px] text-muted-foreground uppercase tracking-[0.3em] font-bold mb-6">
                     Estructura Interválica
@@ -973,7 +1108,6 @@ export function ScalesEducation({
                 </div>
               </div>
 
-              {/* Sidebar Info */}
               <div className="lg:col-span-4 space-y-6">
                 <div className="stat-card p-6 border-l-4 border-l-primary/30">
                   <div className="flex items-center gap-2 mb-4">
@@ -1096,9 +1230,11 @@ export function ScalesEducation({
               {/* Stats & Practice Count */}
               <div className="grid grid-cols-3 gap-2.5 bg-black/40 p-3 rounded-xl border border-white/5 text-center">
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Repeticiones</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">
+                    {progressPeriod === 'todo' ? 'Total Histórico' : 'En este período'}
+                  </p>
                   <p className="font-mono text-xl font-bold text-amber-300 mt-0.5">
-                    {practiceCount[selectedScaleForModal.id] ?? 0}×
+                    {activePracticeCount[selectedScaleForModal.id] ?? 0}×
                   </p>
                 </div>
                 <div>

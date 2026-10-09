@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import {
   Play, BookOpen, ListMusic, FolderPlus, Plus, ChevronDown, ChevronRight,
   Trash2, Pencil, Upload, X, Image as ImageIcon, BarChart3, Link2, ChevronUp,
-  Sparkles, Calendar, CheckCircle2, History, RotateCcw, Flame, Check
+  Sparkles, Calendar, CheckCircle2, History, RotateCcw, Flame, Check, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -49,6 +49,7 @@ export default function ScalesPage() {
   const [instrument, setInstrument] = useState<Instrument>('piano');
   const [dailyFilter, setDailyFilter] = useState<'todos' | 'hoy' | 'pendientes' | 'frecuentes'>('todos');
   const [currentTab, setCurrentTab] = useState<string>('practica');
+  const [registroPeriod, setRegistroPeriod] = useState<'diario' | 'semanal' | 'mensual'>('diario');
   const { instruments } = useInstruments();
   const [search, setSearch] = useState('');
 
@@ -343,6 +344,144 @@ export default function ScalesPage() {
           logs: enhancedLogs,
           count: logs.length,
           isToday: date === today,
+        };
+      });
+  }, [scaleLogs, allScales, today]);
+
+  // History grouped by week
+  const logsByWeek = useMemo(() => {
+    const weekMap = new Map<string, { weekStart: string; weekEnd: string; label: string; logs: any[]; dates: Set<string> }>();
+    
+    (scaleLogs || []).forEach((l: any) => {
+      if (!l.date) return;
+      const d = new Date(l.date + 'T12:00:00');
+      const day = d.getDay();
+      const diffToMon = (day === 0 ? -6 : 1) - day;
+      const mon = new Date(d);
+      mon.setDate(d.getDate() + diffToMon);
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      const startStr = mon.toISOString().slice(0, 10);
+      const endStr = sun.toISOString().slice(0, 10);
+      const key = `${startStr}_${endStr}`;
+
+      if (!weekMap.has(key)) {
+        const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+        const startDay = mon.getDate();
+        const endDay = sun.getDate();
+        const startMonth = months[mon.getMonth()];
+        const endMonth = months[sun.getMonth()];
+        const year = sun.getFullYear();
+        const label = startMonth === endMonth
+          ? `${startDay} - ${endDay} ${endMonth} ${year}`
+          : `${startDay} ${startMonth} - ${endDay} ${endMonth} ${year}`;
+        weekMap.set(key, { weekStart: startStr, weekEnd: endStr, label, logs: [], dates: new Set() });
+      }
+
+      const entry = weekMap.get(key)!;
+      entry.logs.push(l);
+      entry.dates.add(l.date);
+    });
+
+    return Array.from(weekMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, data]) => {
+        const scaleCountMap = new Map<string, { scale: any; count: number; lastDate: string }>();
+        data.logs.forEach(l => {
+          const sc = allScales.find((s: any) => s.id === l.scale_id);
+          const existing = scaleCountMap.get(l.scale_id) || { scale: sc, count: 0, lastDate: l.date };
+          existing.count++;
+          if (l.date > existing.lastDate) existing.lastDate = l.date;
+          scaleCountMap.set(l.scale_id, existing);
+        });
+
+        const uniqueScales = Array.from(scaleCountMap.entries())
+          .sort((a, b) => b[1].count - a[1].count)
+          .map(([id, info]) => ({
+            id,
+            scale: info.scale,
+            label: info.scale?.label || id,
+            theory: info.scale ? SCALE_THEORY[info.scale.scaleType] : null,
+            video_url: info.scale?.video_url || '',
+            count: info.count,
+            lastDate: info.lastDate,
+          }));
+
+        const isCurrentWeek = today >= data.weekStart && today <= data.weekEnd;
+
+        return {
+          key,
+          label: data.label,
+          weekStart: data.weekStart,
+          weekEnd: data.weekEnd,
+          isCurrentWeek,
+          totalReps: data.logs.length,
+          activeDaysCount: data.dates.size,
+          uniqueScales,
+        };
+      });
+  }, [scaleLogs, allScales, today]);
+
+  // History grouped by month
+  const logsByMonth = useMemo(() => {
+    const monthMap = new Map<string, { label: string; logs: any[]; dates: Set<string> }>();
+    const monthNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+
+    (scaleLogs || []).forEach((l: any) => {
+      if (!l.date) return;
+      const key = l.date.slice(0, 7);
+      if (!monthMap.has(key)) {
+        const [y, m] = key.split('-');
+        const name = monthNames[parseInt(m, 10) - 1] || m;
+        monthMap.set(key, { label: `${name} ${y}`, logs: [], dates: new Set() });
+      }
+      const entry = monthMap.get(key)!;
+      entry.logs.push(l);
+      entry.dates.add(l.date);
+    });
+
+    return Array.from(monthMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, data]) => {
+        const scaleCountMap = new Map<string, { scale: any; count: number; lastDate: string }>();
+        const byType: Record<string, number> = {};
+
+        data.logs.forEach(l => {
+          const sc = allScales.find((s: any) => s.id === l.scale_id);
+          if (sc) {
+            byType[sc.scaleType] = (byType[sc.scaleType] || 0) + 1;
+          }
+          const existing = scaleCountMap.get(l.scale_id) || { scale: sc, count: 0, lastDate: l.date };
+          existing.count++;
+          if (l.date > existing.lastDate) existing.lastDate = l.date;
+          scaleCountMap.set(l.scale_id, existing);
+        });
+
+        const uniqueScales = Array.from(scaleCountMap.entries())
+          .sort((a, b) => b[1].count - a[1].count)
+          .map(([id, info]) => ({
+            id,
+            scale: info.scale,
+            label: info.scale?.label || id,
+            theory: info.scale ? SCALE_THEORY[info.scale.scaleType] : null,
+            video_url: info.scale?.video_url || '',
+            count: info.count,
+            lastDate: info.lastDate,
+          }));
+
+        const isCurrentMonth = today.startsWith(key);
+
+        return {
+          key,
+          label: data.label,
+          isCurrentMonth,
+          totalReps: data.logs.length,
+          activeDaysCount: data.dates.size,
+          uniqueScales,
+          byType,
         };
       });
   }, [scaleLogs, allScales, today]);
@@ -671,7 +810,7 @@ export default function ScalesPage() {
                 <ListMusic className="h-4 w-4" /> Práctica
               </TabsTrigger>
               <TabsTrigger value="registro" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2">
-                <Calendar className="h-4 w-4" /> Registro Diario
+                <Calendar className="h-4 w-4" /> Registro
                 {checkedCount > 0 && (
                   <span className="ml-1 bg-amber-400 text-black text-[10px] font-bold px-1.5 py-0.2 rounded-full">
                     {checkedCount}
@@ -906,176 +1045,540 @@ export default function ScalesPage() {
           )}
         </TabsContent>
 
-        {/* Tab: Registro Diario Histórico */}
+        {/* Tab: Registro Histórico (Diario, Semanal, Mensual) */}
         <TabsContent value="registro" className="space-y-6 mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          {/* Summary KPI cards */}
+          {/* Summary KPI cards adapting to the chosen period */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="stat-card text-center py-4">
-              <span className="text-2xl mb-1 block">📅</span>
-              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{logsByDate.length}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Días con práctica</p>
-            </div>
-            <div className="stat-card text-center py-4">
-              <span className="text-2xl mb-1 block">✨</span>
-              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{checkedCount}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Estudiadas hoy</p>
-            </div>
-            <div className="stat-card text-center py-4">
-              <span className="text-2xl mb-1 block">🎼</span>
-              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{totalPracticed}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Escalas practicadas</p>
-            </div>
-            <div className="stat-card text-center py-4">
-              <span className="text-2xl mb-1 block">⚡</span>
-              <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{(scaleLogs || []).length}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 font-medium">Registros totales</p>
-            </div>
+            {registroPeriod === 'diario' && (
+              <>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">📅</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{logsByDate.length}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Días con práctica</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">✨</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{checkedCount}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Estudiadas hoy</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">🎼</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{totalPracticed}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Escalas únicas</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">⚡</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{(scaleLogs || []).length}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Registros totales</p>
+                </div>
+              </>
+            )}
+
+            {registroPeriod === 'semanal' && (
+              <>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">📆</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{logsByWeek.length}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Semanas registradas</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">✨</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">
+                    {logsByWeek.find(w => w.isCurrentWeek)?.uniqueScales.length ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Escalas esta semana</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">🔥</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">
+                    {logsByWeek.find(w => w.isCurrentWeek)?.totalReps ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Repasos esta semana</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">🎯</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">
+                    {logsByWeek.find(w => w.isCurrentWeek)?.activeDaysCount ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Días activos semana</p>
+                </div>
+              </>
+            )}
+
+            {registroPeriod === 'mensual' && (
+              <>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">🗓️</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">{logsByMonth.length}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Meses registrados</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">🎼</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">
+                    {logsByMonth.find(m => m.isCurrentMonth)?.uniqueScales.length ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Escalas este mes</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">⚡</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">
+                    {logsByMonth.find(m => m.isCurrentMonth)?.totalReps ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Repasos este mes</p>
+                </div>
+                <div className="stat-card text-center py-4">
+                  <span className="text-2xl mb-1 block">📅</span>
+                  <p className="font-mono text-2xl sm:text-3xl font-extrabold text-amber-300">
+                    {logsByMonth.find(m => m.isCurrentMonth)?.activeDaysCount ?? 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-medium">Días activos mes</p>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* History timeline list */}
+          {/* History timeline list with period filter tabs */}
           {logsByDate.length === 0 ? (
             <div className="stat-card py-16 text-center border-dashed border-white/10 opacity-70">
               <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
               <h3 className="text-base font-semibold text-foreground">Aún no hay registros de escalas</h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                Marca las escalas en la pestaña "Práctica" conforme las vayas estudiando cada día para construir tu historial diario.
+                Marca las escalas en la pestaña "Práctica" conforme las vayas estudiando cada día para construir tu historial.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              {/* Header with Period Selector */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h3 className="section-title text-base flex items-center gap-2">
                   <History className="h-4 w-4 text-primary" />
-                  Historial Cronológico de Escalas Estudiadas
+                  Historial de Escalas Estudiadas
                 </h3>
-                <span className="text-xs text-muted-foreground font-mono">
-                  {logsByDate.length} {logsByDate.length === 1 ? 'día registrado' : 'días registrados'}
-                </span>
+
+                {/* Period Selector: Diario / Semanal / Mensual */}
+                <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-white/10 rounded-xl self-start sm:self-auto">
+                  <button
+                    onClick={() => setRegistroPeriod('diario')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      registroPeriod === 'diario'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                    }`}
+                  >
+                    <Calendar className="h-3.5 w-3.5" /> Diario
+                  </button>
+                  <button
+                    onClick={() => setRegistroPeriod('semanal')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      registroPeriod === 'semanal'
+                        ? 'bg-amber-500 text-black shadow-sm font-bold'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                    }`}
+                  >
+                    <Calendar className="h-3.5 w-3.5" /> Semanal
+                  </button>
+                  <button
+                    onClick={() => setRegistroPeriod('mensual')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                      registroPeriod === 'mensual'
+                        ? 'bg-emerald-500 text-white shadow-sm font-bold'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                    }`}
+                  >
+                    <Clock className="h-3.5 w-3.5" /> Mensual
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                {logsByDate.map(({ date, logs, count, isToday }) => {
-                  return (
-                    <div
-                      key={date}
-                      className={`stat-card p-4 transition-all duration-300 ${
-                        isToday
-                          ? 'border-amber-400/40 bg-gradient-to-r from-card via-card to-amber-500/10 shadow-lg ring-1 ring-amber-400/30'
-                          : 'border-white/5 bg-white/5'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
-                        <div className="flex items-center gap-2">
-                          <Calendar className={`h-4 w-4 ${isToday ? 'text-amber-400' : 'text-muted-foreground'}`} />
-                          <span className={`text-sm font-bold ${isToday ? 'text-amber-300' : 'text-foreground'}`}>
-                            {isToday ? `Hoy · ${formatDate(date)}` : formatDate(date)}
-                          </span>
-                          {isToday && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              Sesión activa
+              {/* ════ VISTA 1: DIARIA ════ */}
+              {registroPeriod === 'diario' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {logsByDate.map(({ date, logs, count, isToday }) => {
+                    return (
+                      <div
+                        key={date}
+                        className={`stat-card p-4 transition-all duration-300 ${
+                          isToday
+                            ? 'border-amber-400/40 bg-gradient-to-r from-card via-card to-amber-500/10 shadow-lg ring-1 ring-amber-400/30'
+                            : 'border-white/5 bg-white/5'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                          <div className="flex items-center gap-2">
+                            <Calendar className={`h-4 w-4 ${isToday ? 'text-amber-400' : 'text-muted-foreground'}`} />
+                            <span className={`text-sm font-bold ${isToday ? 'text-amber-300' : 'text-foreground'}`}>
+                              {isToday ? `Hoy · ${formatDate(date)}` : formatDate(date)}
                             </span>
-                          )}
+                            {isToday && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                Sesión activa
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white/10 text-foreground/80">
+                              {count} {count === 1 ? 'escala estudiada' : 'escalas estudiadas'}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white/10 text-foreground/80">
-                            {count} {count === 1 ? 'escala estudiada' : 'escalas estudiadas'}
-                          </span>
-                        </div>
-                      </div>
+                        {/* Grid of scales practiced that day */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3">
+                          {logs.map((item: any, idx: number) => {
+                            const theory = item.theory;
+                            const instDef = instruments.find((i: InstrumentDef) => i.id === item.instrument);
+                            const urls = item.video_url ? item.video_url.split('\n').filter(Boolean) : [];
+                            const hasVid = urls.length > 0;
+                            const isItemPlaying = playingScaleId === `${date}-${item.scale_id}`;
 
-                      {/* Grid of scales practiced that day */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3">
-                        {logs.map((item: any, idx: number) => {
-                          const theory = item.theory;
-                          const instDef = instruments.find((i: InstrumentDef) => i.id === item.instrument);
-                          const urls = item.video_url ? item.video_url.split('\n').filter(Boolean) : [];
-                          const hasVid = urls.length > 0;
-                          const isItemPlaying = playingScaleId === `${date}-${item.scale_id}`;
-
-                          return (
-                            <div
-                              key={item.id || idx}
-                              className="p-3 rounded-lg border border-white/10 bg-black/30 hover:border-white/20 transition-all flex flex-col justify-between gap-2"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-foreground/95 truncate">
-                                    {item.label}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    {theory && (
-                                      <span
-                                        className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
-                                        style={{ background: theory.color + '22', color: theory.color }}
-                                      >
-                                        {theory.label}
+                            return (
+                              <div
+                                key={item.id || idx}
+                                className="p-3 rounded-lg border border-white/10 bg-black/30 hover:border-white/20 transition-all flex flex-col justify-between gap-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-foreground/95 truncate">
+                                      {item.label}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {theory && (
+                                        <span
+                                          className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                                          style={{ background: theory.color + '22', color: theory.color }}
+                                        >
+                                          {theory.label}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
+                                        {instDef?.emoji || '🎼'} {instDef?.name || item.instrument}
                                       </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {hasVid && (
+                                      <button
+                                        onClick={() => {
+                                          setPlayingScaleId(isItemPlaying ? null : `${date}-${item.scale_id}`);
+                                        }}
+                                        className={`p-1 rounded transition-colors ${
+                                          isItemPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
+                                        }`}
+                                        title={isItemPlaying ? 'Ocultar video' : 'Ver video tutorial'}
+                                      >
+                                        <Play className="h-3.5 w-3.5" fill="currentColor" />
+                                      </button>
                                     )}
-                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
-                                      {instDef?.emoji || '🎼'} {instDef?.name || item.instrument}
-                                    </span>
+                                    <button
+                                      onClick={() => deleteLog(item.id, item.scale_id, item.date, item.instrument)}
+                                      className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      title="Eliminar este registro"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
                                   </div>
                                 </div>
 
-                                <div className="flex items-center gap-1 shrink-0">
+                                {/* Inline video player for the log */}
+                                {isItemPlaying && hasVid && (
+                                  <div className="mt-2 rounded overflow-hidden border border-white/10 animate-in fade-in duration-200">
+                                    {urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ? (
+                                      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                                        <iframe
+                                          src={`https://www.youtube.com/embed/${
+                                            urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1]
+                                          }?autoplay=1`}
+                                          className="absolute inset-0 w-full h-full border-none"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    ) : (
+                                      <a
+                                        href={urls[0]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block p-2 text-xs text-primary bg-secondary/30 text-center"
+                                      >
+                                        Abrir enlace de video ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ════ VISTA 2: SEMANAL ════ */}
+              {registroPeriod === 'semanal' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {logsByWeek.map(week => {
+                    return (
+                      <div
+                        key={week.key}
+                        className={`stat-card p-4 sm:p-5 transition-all duration-300 ${
+                          week.isCurrentWeek
+                            ? 'border-amber-400/40 bg-gradient-to-r from-card via-card to-amber-500/10 shadow-lg ring-1 ring-amber-400/30'
+                            : 'border-white/5 bg-white/5'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                          <div className="flex items-center gap-2">
+                            <Calendar className={`h-4 w-4 ${week.isCurrentWeek ? 'text-amber-400' : 'text-muted-foreground'}`} />
+                            <span className={`text-base font-bold ${week.isCurrentWeek ? 'text-amber-300' : 'text-foreground'}`}>
+                              Semana {week.label}
+                            </span>
+                            {week.isCurrentWeek && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                Esta semana ✨
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                            <span className="px-2 py-0.5 rounded bg-white/10 text-foreground/90 font-bold">
+                              {week.uniqueScales.length} escalas estudiadas
+                            </span>
+                            <span>·</span>
+                            <span>{week.totalReps} repasos</span>
+                            <span>·</span>
+                            <span>{week.activeDaysCount} días activos</span>
+                          </div>
+                        </div>
+
+                        {/* Unique scales practiced during this week */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3">
+                          {week.uniqueScales.map((item: any) => {
+                            const urls = item.video_url ? item.video_url.split('\n').filter(Boolean) : [];
+                            const hasVid = urls.length > 0;
+                            const isItemPlaying = playingScaleId === `week-${week.key}-${item.id}`;
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-3 rounded-lg border border-white/10 bg-black/30 hover:border-white/20 transition-all flex flex-col justify-between gap-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-foreground/95 truncate">
+                                      {item.label}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {item.theory && (
+                                        <span
+                                          className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                                          style={{ background: item.theory.color + '22', color: item.theory.color }}
+                                        >
+                                          {item.theory.label}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] font-mono text-amber-300 font-bold">
+                                        {item.count}× en la semana
+                                      </span>
+                                    </div>
+                                  </div>
+
                                   {hasVid && (
                                     <button
                                       onClick={() => {
-                                        setPlayingScaleId(isItemPlaying ? null : `${date}-${item.scale_id}`);
+                                        setPlayingScaleId(isItemPlaying ? null : `week-${week.key}-${item.id}`);
                                       }}
-                                      className={`p-1 rounded transition-colors ${
-                                        isItemPlaying ? 'text-red-400' : 'text-red-500 hover:text-red-400'
+                                      className={`p-1.5 rounded-lg transition-colors ${
+                                        isItemPlaying ? 'text-red-400 bg-white/5' : 'text-red-500 hover:text-red-400 hover:bg-white/5'
                                       }`}
                                       title={isItemPlaying ? 'Ocultar video' : 'Ver video tutorial'}
                                     >
                                       <Play className="h-3.5 w-3.5" fill="currentColor" />
                                     </button>
                                   )}
-                                  <button
-                                    onClick={() => deleteLog(item.id, item.scale_id, item.date, item.instrument)}
-                                    className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                    title="Eliminar este registro"
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
                                 </div>
-                              </div>
 
-                              {/* Inline video player for the log */}
-                              {isItemPlaying && hasVid && (
-                                <div className="mt-2 rounded overflow-hidden border border-white/10 animate-in fade-in duration-200">
-                                  {urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ? (
-                                    <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-                                      <iframe
-                                        src={`https://www.youtube.com/embed/${
-                                          urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1]
-                                        }?autoplay=1`}
-                                        className="absolute inset-0 w-full h-full border-none"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                      />
+                                {isItemPlaying && hasVid && (
+                                  <div className="mt-2 rounded overflow-hidden border border-white/10 animate-in fade-in duration-200">
+                                    {urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ? (
+                                      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                                        <iframe
+                                          src={`https://www.youtube.com/embed/${
+                                            urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1]
+                                          }?autoplay=1`}
+                                          className="absolute inset-0 w-full h-full border-none"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    ) : (
+                                      <a
+                                        href={urls[0]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block p-2 text-xs text-primary bg-secondary/30 text-center"
+                                      >
+                                        Abrir enlace de video ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ════ VISTA 3: MENSUAL ════ */}
+              {registroPeriod === 'mensual' && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {logsByMonth.map(month => {
+                    return (
+                      <div
+                        key={month.key}
+                        className={`stat-card p-4 sm:p-5 transition-all duration-300 ${
+                          month.isCurrentMonth
+                            ? 'border-emerald-400/40 bg-gradient-to-r from-card via-card to-emerald-500/10 shadow-lg ring-1 ring-emerald-400/30'
+                            : 'border-white/5 bg-white/5'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+                          <div className="flex items-center gap-2">
+                            <Clock className={`h-4 w-4 ${month.isCurrentMonth ? 'text-emerald-400' : 'text-muted-foreground'}`} />
+                            <span className={`text-base font-bold ${month.isCurrentMonth ? 'text-emerald-300' : 'text-foreground'}`}>
+                              {month.label}
+                            </span>
+                            {month.isCurrentMonth && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                Mes actual ✨
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                            <span className="px-2 py-0.5 rounded bg-white/10 text-foreground/90 font-bold">
+                              {month.uniqueScales.length} escalas practicadas
+                            </span>
+                            <span>·</span>
+                            <span>{month.totalReps} repasos</span>
+                            <span>·</span>
+                            <span>{month.activeDaysCount} días con práctica</span>
+                          </div>
+                        </div>
+
+                        {/* Breakdown pills by scale type in this month */}
+                        {Object.keys(month.byType).length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-1">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1">
+                              Distribución:
+                            </span>
+                            {Object.entries(month.byType).map(([typeKey, reps]) => {
+                              const theory = SCALE_THEORY[typeKey];
+                              return (
+                                <span
+                                  key={typeKey}
+                                  className="text-[10px] font-medium px-2 py-0.5 rounded-md"
+                                  style={{
+                                    backgroundColor: (theory?.color || '#4ade80') + '15',
+                                    color: theory?.color || '#4ade80',
+                                    border: `1px solid ${(theory?.color || '#4ade80')}30`,
+                                  }}
+                                >
+                                  {theory?.label || typeKey}: <strong>{reps}×</strong>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Unique scales list for the month */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-3">
+                          {month.uniqueScales.map((item: any) => {
+                            const urls = item.video_url ? item.video_url.split('\n').filter(Boolean) : [];
+                            const hasVid = urls.length > 0;
+                            const isItemPlaying = playingScaleId === `month-${month.key}-${item.id}`;
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-3 rounded-lg border border-white/10 bg-black/30 hover:border-white/20 transition-all flex flex-col justify-between gap-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-foreground/95 truncate">
+                                      {item.label}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {item.theory && (
+                                        <span
+                                          className="text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+                                          style={{ background: item.theory.color + '22', color: item.theory.color }}
+                                        >
+                                          {item.theory.label}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] font-mono text-emerald-300 font-bold">
+                                        {item.count}× en el mes
+                                      </span>
                                     </div>
-                                  ) : (
-                                    <a
-                                      href={urls[0]}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="block p-2 text-xs text-primary bg-secondary/30 text-center"
+                                  </div>
+
+                                  {hasVid && (
+                                    <button
+                                      onClick={() => {
+                                        setPlayingScaleId(isItemPlaying ? null : `month-${month.key}-${item.id}`);
+                                      }}
+                                      className={`p-1.5 rounded-lg transition-colors ${
+                                        isItemPlaying ? 'text-red-400 bg-white/5' : 'text-red-500 hover:text-red-400 hover:bg-white/5'
+                                      }`}
+                                      title={isItemPlaying ? 'Ocultar video' : 'Ver video tutorial'}
                                     >
-                                      Abrir enlace de video ↗
-                                    </a>
+                                      <Play className="h-3.5 w-3.5" fill="currentColor" />
+                                    </button>
                                   )}
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
+
+                                {isItemPlaying && hasVid && (
+                                  <div className="mt-2 rounded overflow-hidden border border-white/10 animate-in fade-in duration-200">
+                                    {urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1] ? (
+                                      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                                        <iframe
+                                          src={`https://www.youtube.com/embed/${
+                                            urls[0].match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&]+)/)?.[1]
+                                          }?autoplay=1`}
+                                          className="absolute inset-0 w-full h-full border-none"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    ) : (
+                                      <a
+                                        href={urls[0]}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block p-2 text-xs text-primary bg-secondary/30 text-center"
+                                      >
+                                        Abrir enlace de video ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </TabsContent>
