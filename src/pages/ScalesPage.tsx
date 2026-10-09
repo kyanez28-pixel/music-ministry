@@ -48,6 +48,7 @@ export default function ScalesPage() {
   const [filterNote, setFilterNote] = useState<string>('todos');
   const [instrument, setInstrument] = useState<Instrument>('piano');
   const [dailyFilter, setDailyFilter] = useState<'todos' | 'hoy' | 'pendientes' | 'frecuentes'>('todos');
+  const [currentTab, setCurrentTab] = useState<string>('practica');
   const { instruments } = useInstruments();
   const [search, setSearch] = useState('');
 
@@ -656,12 +657,12 @@ export default function ScalesPage() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="practica" className="w-full">
+      <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="page-title">🎼 Scales</h1>
+            <h1 className="page-title">🎼 Escalas</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {totalPracticed} of {PREDEFINED_SCALES.length} scales practiced · {folders.length} folders
+              <span className="text-amber-400 font-semibold">{totalPracticed}</span> de {PREDEFINED_SCALES.length} escalas practicadas ({Math.round((totalPracticed / (PREDEFINED_SCALES.length || 1)) * 100)}% de dominio) · <span className="text-emerald-400 font-semibold">{checkedCount}</span> hoy
             </p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -1080,7 +1081,25 @@ export default function ScalesPage() {
         </TabsContent>
 
         <TabsContent value="educacion" className="mt-0 pt-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <ScalesEducation scaleLogs={scaleLogs} allScales={allScales} practiceCount={practiceCount} />
+          <ScalesEducation
+            scaleLogs={scaleLogs}
+            allScales={allScales}
+            practiceCount={practiceCount}
+            lastPracticed={lastPracticed}
+            todayChecked={todayChecked}
+            scaleVideos={scaleVideos}
+            scaleProgressions={scaleProgressions}
+            today={today}
+            instrument={instrument}
+            onToggleScale={toggleScale}
+            onGoToPracticeTab={(scaleName?: string) => {
+              setCurrentTab('practica');
+              if (scaleName) {
+                setSearch(scaleName);
+                setDailyFilter('todos');
+              }
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="ejercicios" className="mt-0 pt-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
