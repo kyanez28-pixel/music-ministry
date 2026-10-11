@@ -534,17 +534,13 @@ export default function ScalesPage() {
       .filter(Boolean).join(', ');
     const notesText = `Escalas (${checkedToday.length}): ${scaleNames}`;
 
-    // Buscar si ya existe una sesión para hoy (ej. la registrada con el cronómetro principal)
-    const existingSession = (sessions || []).find((s: any) =>
-      s.date === today && (s.instrument === instrument || !s.instrument)
+    // Buscar si ya existe una sesión que incluya escalas para hoy
+    const existingScaleSession = (sessions || []).find((s: any) =>
+      s.date === today && (s.instrument === instrument || !s.instrument) && s.categories?.includes('escalas')
     );
 
-    if (existingSession) {
-      // Vinculamos las escalas a la sesión existente SIN alterar su duración real
-      const existingCategories = existingSession.categories || [];
-      const updatedCategories = Array.from(new Set([...existingCategories, 'escalas' as const]));
-
-      let updatedNotes = existingSession.notes || '';
+    if (existingScaleSession) {
+      let updatedNotes = existingScaleSession.notes || '';
       if (!updatedNotes) {
         updatedNotes = notesText;
       } else if (updatedNotes.includes('Escalas (')) {
@@ -554,28 +550,26 @@ export default function ScalesPage() {
       }
 
       setSessions((prev: any[]) => prev.map((s: any) =>
-        s.id === existingSession.id
+        s.id === existingScaleSession.id
           ? {
               ...s,
-              categories: updatedCategories,
               notes: updatedNotes,
             }
           : s
       ));
-      toast.success(`¡Vinculado a tu sesión de hoy (${existingSession.durationMinutes} min)!`);
+      toast.success(`¡Escalas actualizadas en tu sesión existente!`);
     } else {
-      // Si no hay sesión previa del cronómetro, registramos con 0 minutos para no inflar las estadísticas
       setSessions((prev: any[]) => [...prev, {
         id: generateId(),
         date: today,
         instrument,
-        durationMinutes: 0,
+        durationMinutes: 15,
         categories: ['escalas' as const],
         notes: notesText,
         rating: 4,
         goal: 'Práctica diaria de escalas',
       }]);
-      toast.success(`¡Escalas registradas! Se asociarán a tu tiempo del cronómetro.`);
+      toast.success(`¡Sesión de escalas registrada!`);
     }
   };
 

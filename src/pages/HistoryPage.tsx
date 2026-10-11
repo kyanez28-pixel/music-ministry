@@ -34,51 +34,6 @@ export default function HistoryPage() {
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, -1 = last week, etc.
   const { instruments } = useInstruments();
 
-  // Limpieza y fusión automática de sesiones duplicadas de escalas
-  useEffect(() => {
-    if (!sessions || sessions.length === 0) return;
-    const toDelete: string[] = [];
-    const updates: Record<string, any> = {};
-
-    // Agrupar por fecha
-    const byDate: Record<string, any[]> = {};
-    sessions.forEach((s: any) => {
-      const key = s.date;
-      if (!byDate[key]) byDate[key] = [];
-      byDate[key].push(s);
-    });
-
-    Object.values(byDate).forEach((group) => {
-      if (group.length > 1) {
-        // Encontrar sesión duplicada generada exclusivamente por escalas
-        const scaleOnly = group.find((s: any) =>
-          ((s.notes && s.notes.includes('Escalas (')) ||
-           s.goal === 'Práctica diaria de escalas' ||
-           (s.categories?.length === 1 && s.categories[0] === 'escalas')) &&
-          (s.durationMinutes === 15 || s.durationMinutes === 0 || s.durationMinutes <= 20)
-        );
-        // La sesión real principal (ej. la de 26 min del cronómetro)
-        const realSession = group.find((s: any) => s.id !== scaleOnly?.id && s.durationMinutes > 0);
-
-        if (scaleOnly && realSession) {
-          toDelete.push(scaleOnly.id);
-          const newCats = Array.from(new Set([...(realSession.categories || []), 'escalas' as PracticeCategory]));
-          const newNotes = realSession.notes
-            ? (realSession.notes.includes('Escalas (') ? realSession.notes : `${realSession.notes}\n${scaleOnly.notes || ''}`.trim())
-            : (scaleOnly.notes || '');
-          updates[realSession.id] = { ...realSession, categories: newCats, notes: newNotes };
-        }
-      }
-    });
-
-    if (toDelete.length > 0) {
-      setSessions((prev: any[]) =>
-        prev
-          .filter((s: any) => !toDelete.includes(s.id))
-          .map((s: any) => updates[s.id] || s)
-      );
-    }
-  }, [sessions, setSessions]);
 
   const filtered = (sessions || [])
     .filter((s: any) => filterInstrument === 'todos' || s.instrument === filterInstrument)
@@ -433,9 +388,10 @@ export default function HistoryPage() {
           ) : (
             <div className="space-y-2.5">
               {filtered.map((s: any) => {
-                const sessionScaleLogs = (scaleLogs || []).filter(
+                const isScaleSession = s.categories?.includes('escalas') || (s.notes && s.notes.includes('Escalas ('));
+                const sessionScaleLogs = isScaleSession ? (scaleLogs || []).filter(
                   (l: any) => l.date === s.date && (l.instrument === s.instrument || !s.instrument)
-                );
+                ) : [];
 
                 // Evitar texto duplicado de notas si ya mostramos las escalas como chips
                 const displayNotes = s.notes
