@@ -4,6 +4,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PracticeSession, Scale, Harmony, Melody, Rhythm, Song, WeeklySetlist, ScalePracticeLog, HarmonyPracticeLog, RhythmPracticeLog, MelodyImage, RhythmImage, Exercise, ExerciseImage, ScaleImage, HarmonyImage, ScaleFolder, HarmonyFolder, RhythmFolder, ExerciseFolder } from '@/types/music';
 
+import { toDbUuid, fromDbUuid } from '@/lib/id-uuid-map';
+
+const TABLE_ID_FIELDS: Record<string, string[]> = {
+  scale_logs: ['scale_id'],
+  scale_images: ['scale_id'],
+  harmony_logs: ['harmony_id'],
+  harmony_images: ['harmony_id'],
+  rhythm_practice_logs: ['rhythm_id'],
+  rhythm_images: ['rhythm_id'],
+  melody_practice_logs: ['melody_id'],
+  melody_images: ['melody_id'],
+  exercises: ['related_scale_id', 'related_harmony_id'],
+};
+
 export function useSupabaseData<T>(tableName: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -18,7 +32,17 @@ export function useSupabaseData<T>(tableName: string) {
         console.error(`Error fetching ${tableName}:`, error);
         throw error;
       }
-      return data as T[];
+      const fields = TABLE_ID_FIELDS[tableName];
+      const parsedData = fields && data
+        ? data.map((row: any) => {
+            const mapped = { ...row };
+            for (const f of fields) {
+              if (mapped[f]) mapped[f] = fromDbUuid(mapped[f]);
+            }
+            return mapped;
+          })
+        : data;
+      return parsedData as T[];
     },
     enabled: !!user,
   });
@@ -32,6 +56,19 @@ export function useSupabaseData<T>(tableName: string) {
   const setData = useCallback(async (value: T[] | ((val: T[]) => T[])) => {
     if (!user) return;
     
+    const fields = TABLE_ID_FIELDS[tableName];
+    const transformRowForDb = (item: any) => {
+      const copy = { ...item, user_id: user.id };
+      if (fields) {
+        for (const f of fields) {
+          if (copy[f] !== undefined && copy[f] !== null) {
+            copy[f] = toDbUuid(copy[f]);
+          }
+        }
+      }
+      return copy;
+    };
+
     const processData = async (prev: T[], newData: T[]) => {
       try {
         const hasMissingIds = newData.some((item: any) => !item.id) || prev.some((item: any) => !item.id);
@@ -43,7 +80,7 @@ export function useSupabaseData<T>(tableName: string) {
           if (newData.length > 0) {
             const { error: insError } = await supabase.from(tableName as any).insert(
               newData.map((item: any) => {
-                const copy = { ...item, user_id: user.id };
+                const copy = transformRowForDb(item);
                 delete copy.id;
                 if (copy.created_at === undefined || copy.created_at === null) {
                   copy.created_at = new Date().toISOString();
@@ -61,7 +98,7 @@ export function useSupabaseData<T>(tableName: string) {
            const upserts = newData.filter((newItem: any) => {
              const oldItem = oldDataMap.get(newItem.id);
              return !oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem);
-           }).map((item: any) => ({ ...item, user_id: user.id }));
+           }).map((item: any) => transformRowForDb(item));
            
            if (deletedIds.length > 0) {
              const { error: delError } = await supabase.from(tableName as any).delete().in('id', deletedIds).eq('user_id', user.id);
@@ -75,7 +112,6 @@ export function useSupabaseData<T>(tableName: string) {
         queryClient.invalidateQueries({ queryKey });
       } catch (error: any) {
         console.error(`Sync error on ${tableName}:`, error);
-        alert(`Error al guardar en ${tableName}: ${error.message || 'Restricción de base de datos'}`);
         const { toast } = await import('sonner');
         toast.error(`Error guardando ${tableName}: ${error.message || 'Error de red'}`, { duration: 10000 });
       }
